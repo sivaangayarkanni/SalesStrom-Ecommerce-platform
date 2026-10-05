@@ -25,3 +25,8 @@ Every tool named in the hackathon brief has a matching artifact in this repo.
 - Locust file: Python compile OK.  
 - JMeter `.jmx`: well-formed XML.  
 - Simulation: **PASS** (see `11_AI_Assisted_Validation/simulation/results.json`).
+
+## Quick index
+
+See **[DIAGRAMS.md](DIAGRAMS.md)** for every PNG / Draw.io / PlantUML / Mermaid source file.
+

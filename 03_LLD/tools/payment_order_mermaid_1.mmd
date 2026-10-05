@@ -1,0 +1,26 @@
+sequenceDiagram
+  participant C as Customer
+  participant CK as Checkout Orchestrator
+  participant P as Payment Service
+  participant DB as Postgres
+  participant G as Payment Gateway
+  C->>CK: POST /checkout (Idempotency-Key)
+  CK->>P: authorize(reservationId, amount, key)
+  P->>DB: INSERT payment INITIATED (UNIQUE idempotency_key)
+  P->>G: authorize (gateway idempotency key = our key, timeout 3 s)
+  alt Success
+    G-->>P: authorized, txn_ref
+    P->>DB: payment AUTHORIZED + outbox PaymentAuthorized (one txn)
+    P-->>C: 202 Payment authorized, order processing
+  else Declined
+    G-->>P: declined
+    P->>DB: payment FAILED + outbox PaymentFailed
+    Note over DB: Inventory consumes PaymentFailed and releases unit
+    P-->>C: 402 Payment failed, unit released
+  else Timeout
+    G--xP: no answer in 3 s
+    P->>DB: payment TIMEOUT (unknown outcome)
+    P->>G: GET status by our key (reconciliation, backoff 1s 2s 4s)
+    G-->>P: real status
+    P->>DB: AUTHORIZED or FAILED accordingly
+  end

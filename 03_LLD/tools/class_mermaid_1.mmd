@@ -1,0 +1,70 @@
+classDiagram
+  class ReservationController {
+    +reserve(saleId, request, idemKey) ReservationResponse
+    +cancel(reservationId)
+  }
+  class IdempotencyStore {
+    <<interface>>
+    +find(key) Optional~StoredResponse~
+    +saveIfAbsent(key, requestHash) boolean
+    +complete(key, response)
+  }
+  class RedisIdempotencyStore
+  class DbIdempotencyStore
+  class SoldOutFlag {
+    -volatile boolean soldOut
+    +isSoldOut() boolean
+    +onStockSoldOut(event)
+    +onStockReleased(event)
+  }
+  class TokenPool {
+    <<interface>>
+    +tryAcquire(saleId) boolean
+    +release(saleId)
+  }
+  class RedisTokenPool
+  class ReservationService {
+    -TokenPool tokenPool
+    -InventoryUnitRepository units
+    -ReservationRepository reservations
+    -OutboxWriter outbox
+    +reserve(cmd) Reservation
+    +confirm(reservationId, fencingVersion)
+    +release(reservationId, reason)
+    +expireDue()
+  }
+  class InventoryUnitRepository {
+    <<interface>>
+    +claimAvailable(inventoryId) Optional~InventoryUnit~
+    +markSold(unitId)
+    +free(unitId)
+  }
+  class ReservationRepository {
+    <<interface>>
+    +save(Reservation)
+    +findById(id) Reservation
+    +findExpired(now, limit) List~Reservation~
+  }
+  class Reservation {
+    -UUID id
+    -ReservationStatus status
+    -Instant expiresAt
+    -int fencingVersion
+    +confirm(fv)
+    +expire()
+    +release()
+  }
+  class OutboxWriter {
+    +write(aggregate, eventType, payload)
+  }
+  ReservationController --> IdempotencyStore
+  ReservationController --> SoldOutFlag
+  ReservationController --> ReservationService
+  IdempotencyStore <|.. RedisIdempotencyStore
+  IdempotencyStore <|.. DbIdempotencyStore
+  TokenPool <|.. RedisTokenPool
+  ReservationService --> TokenPool
+  ReservationService --> InventoryUnitRepository
+  ReservationService --> ReservationRepository
+  ReservationService --> OutboxWriter
+  ReservationRepository --> Reservation

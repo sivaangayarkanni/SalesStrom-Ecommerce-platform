@@ -1,0 +1,52 @@
+classDiagram
+  class PaymentService {
+    -PaymentProviderFactory factory
+    -PaymentRepository repo
+    -IdempotencyStore idem
+    -OutboxWriter outbox
+    +authorize(cmd) PaymentResult
+    +capture(paymentId)
+    +voidAuth(paymentId)
+    +reconcile(paymentId)
+  }
+  class PaymentGateway {
+    <<interface>>
+    +authorize(req, idemKey) GatewayResult
+    +capture(txnRef, idemKey) GatewayResult
+    +voidAuth(txnRef) GatewayResult
+    +status(idemKey) GatewayResult
+  }
+  class RazorpayAdapter
+  class StripeAdapter
+  class PaymentProviderFactory {
+    +forMethod(method, region) PaymentGateway
+  }
+  class CircuitBreakerGateway {
+    -PaymentGateway delegate
+    -CircuitBreaker breaker
+  }
+  class CircuitBreaker {
+    -State state
+    +call(supplier)
+  }
+  class Payment {
+    -UUID id
+    -PaymentStatus status
+    -String idempotencyKey
+    -String providerTxnRef
+    +markAuthorized(ref)
+    +markFailed(reason)
+    +markTimeout()
+  }
+  class PaymentRepository {
+    <<interface>>
+  }
+  PaymentGateway <|.. RazorpayAdapter
+  PaymentGateway <|.. StripeAdapter
+  PaymentGateway <|.. CircuitBreakerGateway
+  CircuitBreakerGateway --> CircuitBreaker
+  CircuitBreakerGateway --> PaymentGateway
+  PaymentProviderFactory --> PaymentGateway
+  PaymentService --> PaymentProviderFactory
+  PaymentService --> PaymentRepository
+  PaymentRepository --> Payment

@@ -1,0 +1,70 @@
+classDiagram
+  class CheckoutFacade {
+    +checkout(customerId, reservationId, idemKey) CheckoutResult
+  }
+  class CheckoutSaga {
+    +start()
+    +onPaymentAuthorized()
+    +onOrderCreated()
+    +compensate(reason)
+  }
+  class PricingStrategy {
+    <<interface>>
+    +price(product, sale, coupon) Money
+  }
+  class FlashSalePricing
+  class CouponPricing
+  class OrderService {
+    -OrderRepository repo
+    -OrderEventPublisher publisher
+    +createFromPayment(event)
+    +cancel(orderId)
+  }
+  class Order {
+    -UUID id
+    -OrderState state
+    -int version
+    +transitionTo(next)
+  }
+  class OrderState {
+    <<interface>>
+    +next(Order, OrderEvent) OrderState
+  }
+  class CreatedState
+  class PaymentPendingState
+  class ConfirmedState
+  class ShippedState
+  class DeliveredState
+  class CancelledState
+  class OrderEventPublisher {
+    +subscribe(OrderObserver)
+    +publish(OrderEvent)
+  }
+  class OrderObserver {
+    <<interface>>
+    +onEvent(OrderEvent)
+  }
+  class NotificationObserver
+  class ShipmentObserver
+  class DeliveryPartnerAdapter {
+    <<interface>>
+    +createShipment(order) ShipmentRef
+    +track(ref) TrackingStatus
+  }
+  CheckoutFacade --> CheckoutSaga
+  CheckoutSaga --> PricingStrategy
+  PricingStrategy <|.. FlashSalePricing
+  PricingStrategy <|.. CouponPricing
+  OrderService --> Order
+  Order --> OrderState
+  OrderState <|.. CreatedState
+  OrderState <|.. PaymentPendingState
+  OrderState <|.. ConfirmedState
+  OrderState <|.. ShippedState
+  OrderState <|.. DeliveredState
+  OrderState <|.. CancelledState
+  OrderService --> OrderEventPublisher
+  OrderEventPublisher --> OrderObserver
+  OrderObserver <|.. NotificationObserver
+  OrderObserver <|.. ShipmentObserver
+  ShipmentObserver --> DeliveryPartnerAdapter

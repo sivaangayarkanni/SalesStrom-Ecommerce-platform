@@ -1,0 +1,49 @@
+flowchart TB
+  subgraph Edge
+    CDN[CDN and WAF]
+    LB[Load Balancer]
+    GW[API Gateway]
+  end
+  subgraph Services
+    PS[Product and Sale Service]
+    CS[Cart Service]
+    WR[Waiting Room]
+    CK[Checkout Orchestrator]
+    INV[Inventory and Reservation Service]
+    PAY[Payment Service]
+    ORD[Order Service]
+    SH[Shipment Service]
+    NT[Notification Service]
+    RC[Reconciliation Worker]
+  end
+  subgraph Data
+    R[(Redis Cluster)]
+    DB[(Postgres Primary)]
+    RR[(Read Replicas)]
+    K[[Kafka]]
+  end
+  subgraph External
+    PGW[Payment Gateway]
+    LP[Logistics Partner]
+    NP[SMS Email Push]
+  end
+  CDN --> LB --> GW
+  GW --> PS
+  GW --> CS
+  GW --> WR --> CK
+  CK -->|sync REST| INV
+  CK -->|sync REST| PAY
+  PS --> RR
+  CS --> R
+  INV --> R
+  INV --> DB
+  PAY --> DB
+  PAY --> PGW
+  DB -.outbox.-> K
+  K -.-> ORD
+  K -.-> SH
+  K -.-> NT
+  K -.-> RC
+  ORD --> DB
+  SH --> LP
+  NT --> NP

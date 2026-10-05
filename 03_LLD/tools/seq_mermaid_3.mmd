@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant K as Kafka
+  participant O as Order Service
+  participant DB as Postgres
+  participant P as Payment Service
+  participant N as Notification
+  K->>O: PaymentAuthorized
+  O->>DB: INSERT order UNIQUE payment_id, outbox OrderCreated
+  alt duplicate delivery
+    DB-->>O: unique violation, ack and skip
+  end
+  DB->>K: OrderCreated
+  K->>P: capture
+  P->>DB: CAPTURED, outbox PaymentCaptured
+  K->>O: PaymentCaptured, order CONFIRMED
+  K->>N: OrderConfirmed, send email and SMS

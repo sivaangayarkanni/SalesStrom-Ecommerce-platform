@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant P as Payment Service
+  participant DB as Postgres
+  participant K as Kafka
+  participant O as Order Service
+  participant R as Reconciliation Worker
+  P->>DB: payment AUTHORIZED + outbox PaymentAuthorized (same txn)
+  DB->>K: outbox relay publishes PaymentAuthorized
+  K-xO: Order Service down for 30 s
+  Note over K: event stays in topic, consumer offset not committed
+  Note over DB: reservation extended while authorization held
+  O->>K: comes back, consumes PaymentAuthorized
+  O->>DB: INSERT order (UNIQUE payment_id) + outbox OrderCreated
+  DB->>K: OrderCreated
+  K->>P: capture payment (same key)
+  P->>DB: payment CAPTURED, reservation SOLD
+  R->>DB: every 1 min find AUTHORIZED payments with no order older than SLA
+  R->>P: if still no order after 15 min, void authorization and release unit

@@ -1,0 +1,203 @@
+erDiagram
+    CUSTOMER ||--o{ CART : owns
+    CUSTOMER ||--o{ ORDERS : places
+    CUSTOMER ||--o{ INVENTORY_RESERVATION : holds
+    CUSTOMER ||--o{ NOTIFICATION : receives
+    CATEGORY ||--o{ PRODUCT : classifies
+    CATEGORY ||--o{ CATEGORY : parent_of
+    PRODUCT ||--|| INVENTORY : stocked_as
+    PRODUCT ||--o{ SALE : featured_in
+    SALE ||--o{ DEAL : has
+    SALE ||--o{ COUPON : offers
+    SALE ||--|| INVENTORY : allocates
+    INVENTORY ||--o{ INVENTORY_UNIT : split_into
+    INVENTORY_UNIT ||--o{ INVENTORY_RESERVATION : claimed_by
+    INVENTORY_RESERVATION ||--o| ORDER_ITEM : becomes
+    CART ||--o{ CART_ITEM : contains
+    PRODUCT ||--o{ CART_ITEM : added_as
+    ORDERS ||--|{ ORDER_ITEM : contains
+    PRODUCT ||--o{ ORDER_ITEM : sold_as
+    ORDERS ||--o{ PAYMENT : paid_by
+    INVENTORY_RESERVATION ||--o{ PAYMENT : funds
+    ORDERS ||--o{ SHIPMENT : shipped_as
+    ORDERS ||--o{ NOTIFICATION : triggers
+    COUPON ||--o{ ORDERS : applied_to
+
+    CUSTOMER {
+        uuid customer_id PK
+        string email UK
+        string phone
+        string full_name
+        string status
+        timestamp created_at
+    }
+    CATEGORY {
+        bigint category_id PK
+        bigint parent_id FK
+        string name UK
+    }
+    PRODUCT {
+        uuid product_id PK
+        bigint category_id FK
+        string sku UK
+        string name
+        bigint base_price_paise
+        int version
+        timestamp updated_at
+    }
+    SALE {
+        uuid sale_id PK
+        uuid product_id FK
+        timestamp starts_at
+        timestamp ends_at
+        int total_units
+        bigint sale_price_paise
+        int per_customer_limit
+        string status
+        int config_version
+    }
+    DEAL {
+        uuid deal_id PK
+        uuid sale_id FK
+        string pricing_strategy
+        string rule_json
+    }
+    COUPON {
+        uuid coupon_id PK
+        uuid sale_id FK
+        string code UK
+        int max_uses
+        int used_count
+        timestamp valid_until
+    }
+    INVENTORY {
+        uuid inventory_id PK
+        uuid product_id FK
+        uuid sale_id FK
+        int total_quantity
+        int available_quantity
+        int reserved_quantity
+        int sold_quantity
+        int version
+        timestamp updated_at
+    }
+    INVENTORY_UNIT {
+        uuid unit_id PK
+        uuid inventory_id FK
+        uuid sale_id FK
+        int unit_no
+        string status
+        uuid reservation_id FK
+        bigint fencing_version
+        timestamp updated_at
+    }
+    INVENTORY_RESERVATION {
+        uuid reservation_id PK
+        uuid sale_id FK
+        uuid customer_id FK
+        uuid product_id FK
+        uuid unit_id FK
+        bigint fencing_version
+        string status
+        string idempotency_key UK
+        string business_key UK
+        timestamp expires_at
+        int version
+        timestamp created_at
+        timestamp updated_at
+    }
+    IDEMPOTENCY_RECORD {
+        string idem_key PK
+        uuid customer_id FK
+        string endpoint
+        string request_hash
+        string status
+        int response_code
+        string response_body
+        timestamp created_at
+        timestamp expires_at
+    }
+    CART {
+        uuid cart_id PK
+        uuid customer_id FK
+        string status
+        timestamp updated_at
+    }
+    CART_ITEM {
+        uuid cart_item_id PK
+        uuid cart_id FK
+        uuid product_id FK
+        int quantity
+    }
+    ORDERS {
+        uuid order_id PK
+        uuid customer_id FK
+        uuid reservation_id FK
+        uuid coupon_id FK
+        string status
+        bigint total_paise
+        string idempotency_key UK
+        int version
+        date order_date
+        timestamp created_at
+        timestamp updated_at
+    }
+    ORDER_ITEM {
+        uuid order_item_id PK
+        uuid order_id FK
+        uuid product_id FK
+        uuid reservation_id FK
+        int quantity
+        bigint unit_price_paise
+    }
+    PAYMENT {
+        uuid payment_id PK
+        uuid reservation_id FK
+        uuid order_id FK
+        string provider
+        string provider_txn_ref UK
+        string idempotency_key UK
+        bigint amount_paise
+        string status
+        int attempt_no
+        timestamp created_at
+        timestamp updated_at
+    }
+    SHIPMENT {
+        uuid shipment_id PK
+        uuid order_id FK
+        string partner_code
+        string tracking_no UK
+        string status
+        timestamp updated_at
+    }
+    NOTIFICATION {
+        uuid notification_id PK
+        uuid customer_id FK
+        uuid order_id FK
+        string channel
+        string template
+        string dedupe_key UK
+        string status
+        timestamp sent_at
+    }
+    OUTBOX_EVENT {
+        uuid event_id PK
+        string aggregate_type
+        uuid aggregate_id
+        string event_type
+        string payload_json
+        timestamp created_at
+        timestamp published_at
+    }
+    AUDIT_LOG {
+        bigint audit_id PK
+        string entity_type
+        uuid entity_id
+        string action
+        string old_state
+        string new_state
+        string actor
+        string trace_id
+        timestamp created_at
+    }

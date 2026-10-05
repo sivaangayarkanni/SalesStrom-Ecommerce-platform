@@ -1,0 +1,14 @@
+stateDiagram-v2
+  [*] --> CREATED
+  CREATED --> PAYMENT_PENDING: payment authorization started
+  PAYMENT_PENDING --> CONFIRMED: payment captured
+  PAYMENT_PENDING --> CANCELLED: payment failed or voided
+  CONFIRMED --> PROCESSING: picked by warehouse
+  PROCESSING --> SHIPPED: shipment created
+  SHIPPED --> OUT_FOR_DELIVERY
+  OUT_FOR_DELIVERY --> DELIVERED
+  CONFIRMED --> CANCELLED: customer cancels before shipping
+  PROCESSING --> CANCELLED: customer cancels before shipping
+  CANCELLED --> REFUNDED: if captured, refund issued
+  DELIVERED --> [*]
+  REFUNDED --> [*]

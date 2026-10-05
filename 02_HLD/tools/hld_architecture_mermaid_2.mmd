@@ -1,0 +1,11 @@
+flowchart LR
+  REQ[Request] --> L0{L0 Browser can answer?}
+  L0 -->|yes| A0[Answered 0 ms]
+  L0 -->|no| L1{L1 CDN can answer?}
+  L1 -->|yes| A1[Answered 5-20 ms]
+  L1 -->|no| L2{L2 local cache can answer?}
+  L2 -->|yes| A2[Answered under 1 ms]
+  L2 -->|no| L3{L3 Redis token left?}
+  L3 -->|no token| A3[409 SOLD_OUT about 1 ms]
+  L3 -->|token| L4[L4 Postgres commits reservation]
+  L4 --> A4[201 RESERVED]

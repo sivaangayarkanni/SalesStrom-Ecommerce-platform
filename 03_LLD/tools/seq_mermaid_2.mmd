@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant U as Customer
+  participant P as Payment Service
+  participant DB as Postgres
+  participant G as Gateway
+  U->>P: POST /payments key K
+  P->>DB: INSERT payment key K
+  P->>G: authorize key K
+  U->>P: POST /payments key K again (retry)
+  P->>DB: INSERT payment key K
+  DB-->>P: unique violation
+  P-->>U: replay first result, no second gateway call
+  G-->>P: authorized

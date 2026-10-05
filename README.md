@@ -46,6 +46,10 @@ Full run: [`11_AI_Assisted_Validation/simulation/`](11_AI_Assisted_Validation/si
 | [`11_AI_Assisted_Validation/`](11_AI_Assisted_Validation/) | Simulation, Locust, JMeter, AI usage note |
 | [`12_Presentation/`](12_Presentation/) | Pitch deck, script, jury Q&A, charts |
 
+## Diagrams as images
+
+Every diagram is also an image file (PNG / Draw.io). Browse **[DIAGRAMS.md](DIAGRAMS.md)** or the `*/tools/` folders.
+
 ## How to open the tool files
 
 See **[13_Tools_Guide.md](13_Tools_Guide.md)** for Draw.io, PlantUML, Mermaid, StarUML, Visual Paradigm, MySQL Workbench, dbdiagram.io, Swagger, Postman, JMeter, Locust, and GitHub.

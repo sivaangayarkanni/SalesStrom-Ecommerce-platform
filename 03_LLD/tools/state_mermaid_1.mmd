@@ -1,0 +1,12 @@
+stateDiagram-v2
+  [*] --> AVAILABLE
+  AVAILABLE --> RESERVED: unit claimed
+  RESERVED --> PAYMENT_PENDING: checkout started
+  PAYMENT_PENDING --> CONFIRMED: payment authorized, fencing ok
+  CONFIRMED --> SOLD: order persisted and captured
+  RESERVED --> TIMEOUT: expires_at reached
+  PAYMENT_PENDING --> PAYMENT_FAILED: declined or voided
+  TIMEOUT --> RELEASED
+  PAYMENT_FAILED --> RELEASED
+  RELEASED --> AVAILABLE: unit freed, token returned, StockReleased
+  SOLD --> [*]

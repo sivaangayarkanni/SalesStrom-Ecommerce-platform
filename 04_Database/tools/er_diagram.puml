@@ -1,0 +1,72 @@
+@startuml
+skinparam backgroundColor white
+skinparam linetype ortho
+title SALESTORM — Core ER Diagram
+
+entity "sales" as sales {
+  * sale_id : uuid <<PK>>
+  --
+  product_id : uuid
+  starts_at : timestamptz
+  ends_at : timestamptz
+  total : int
+  available : int
+  reserved : int
+  sold : int
+}
+
+entity "inventory_units" as units {
+  * unit_id : uuid <<PK>>
+  --
+  * sale_id : uuid <<FK>>
+  status : enum
+  version : int
+  reserved_by : uuid
+  reserved_until : timestamptz
+}
+
+entity "reservations" as res {
+  * reservation_id : uuid <<PK>>
+  --
+  * sale_id : uuid <<FK>>
+  * customer_id : uuid
+  * unit_id : uuid <<FK>>
+  status : enum
+  expires_at : timestamptz
+  fencing_token : int
+}
+
+entity "payments" as pay {
+  * payment_id : uuid <<PK>>
+  --
+  * reservation_id : uuid <<FK>>
+  idempotency_key : text
+  status : enum
+  auth_ref : text
+  amount_cents : int
+}
+
+entity "orders" as ord {
+  * order_id : uuid <<PK>>
+  --
+  * reservation_id : uuid <<FK>>
+  * customer_id : uuid
+  status : enum
+}
+
+entity "outbox_events" as ob {
+  * event_id : uuid <<PK>>
+  --
+  aggregate_type : text
+  aggregate_id : uuid
+  payload : jsonb
+  published_at : timestamptz
+}
+
+sales ||--o{ units
+sales ||--o{ res
+units ||--o| res
+res ||--o| pay
+res ||--o| ord
+ord ||--o{ ob
+@enduml

@@ -1,0 +1,9 @@
+flowchart LR
+  C([Customer]) -->|HTTPS| EDGE[CDN + WAF]
+  EDGE --> S[SALESTORM Platform]
+  OPS([Ops and Support]) -->|Admin dashboard| S
+  S -->|Authorize, capture, void, refund| PG[Payment Gateway]
+  PG -->|Signed webhooks| S
+  S -->|Create shipment, tracking| LP[Logistics Partner]
+  S -->|SMS, Email, Push| NP[Notification Providers]
+  S -->|Metrics, logs, traces| OBS[Monitoring Stack]

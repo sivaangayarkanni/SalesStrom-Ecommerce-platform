@@ -1,0 +1,22 @@
+flowchart TB
+  U[Customer browser - L0 cache] --> CDN[CDN and WAF - L1 cache and SOLD_OUT flag]
+  CDN --> LB[Load Balancer]
+  LB --> GW[API Gateway - auth, rate limit, Idempotency-Key check]
+  GW --> PS[Product and Sale Service - L2 local cache]
+  GW --> CS[Cart Service]
+  GW --> WR[Waiting Room]
+  WR --> CK[Checkout Orchestrator - Facade and Saga]
+  CK --> INV[Inventory and Reservation Service]
+  CK --> PAY[Payment Service]
+  INV --> R[(Redis Cluster - L3 token pool, idempotency, cart)]
+  INV --> DB[(Postgres - L4 source of truth)]
+  PAY --> DB
+  PAY --> PGW[Payment Gateway via Adapter and Circuit Breaker]
+  DB --> OB[Outbox Relay]
+  OB --> K[[Kafka]]
+  K --> ORD[Order Service]
+  K --> SH[Shipment Service]
+  K --> NT[Notification Service]
+  K --> RC[Reconciliation Worker]
+  K --> CI[Cache Invalidator - pushes SOLD_OUT to L1 and L2]
+  ORD --> DB

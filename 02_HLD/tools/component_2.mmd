@@ -1,0 +1,8 @@
+flowchart TB
+  CF[CheckoutFacade] --> SAGA[CheckoutSaga - state machine]
+  SAGA --> IC[InventoryClient]
+  SAGA --> PC[PaymentClient]
+  SAGA --> PR[PricingStrategy]
+  SAGA --> CB[CircuitBreaker]
+  SAGA --> COMP[CompensationHandler - release unit, void auth]
+  SAGA --> LOG[(Saga log table)]

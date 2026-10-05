@@ -1,0 +1,15 @@
+flowchart TB
+  API[ReservationController] --> V[RequestValidator]
+  V --> IDEM[IdempotencyGuard - Redis then DB]
+  IDEM --> SOF[SoldOutFlag - L2 local boolean]
+  SOF --> TP[TokenPool - Redis Lua atomic pop]
+  TP --> RS[ReservationService]
+  RS --> UR[InventoryUnitRepository - SKIP LOCKED claim]
+  RS --> RR[ReservationRepository]
+  RS --> OBW[OutboxWriter - same transaction]
+  EXP[ExpiryScheduler - delayed queue plus sweeper] --> RS
+  OBW --> DB[(Postgres)]
+  UR --> DB
+  RR --> DB
+  TP --> R[(Redis)]
+  IDEM --> R

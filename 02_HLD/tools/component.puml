@@ -1,0 +1,38 @@
+@startuml
+skinparam backgroundColor white
+title SALESTORM — Checkout Orchestrator Components
+
+package "Checkout Orchestrator" {
+  [CheckoutFacade] as F
+  [ReservationCoordinator] as RC
+  [PaymentCoordinator] as PC
+  [IdempotencyFilter] as IF
+  [SagaOrchestrator] as SO
+  [OutboxWriter] as OW
+}
+package "Inventory" {
+  [TokenPoolClient] as TP
+  [UnitRowRepository] as UR
+}
+package "Payment" {
+  [PaymentGatewayAdapter] as PGA
+  [CircuitBreaker] as CB
+}
+database Redis
+database Postgres
+cloud Gateway
+
+IF --> F
+F --> RC
+F --> PC
+F --> SO
+SO --> OW
+RC --> TP
+RC --> UR
+TP --> Redis
+UR --> Postgres
+PC --> PGA
+PGA --> CB
+CB --> Gateway
+OW --> Postgres
+@enduml

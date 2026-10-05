@@ -1,0 +1,35 @@
+sequenceDiagram
+  participant U as Customer
+  participant CDN as L1 CDN
+  participant GW as API Gateway
+  participant RC as ReservationController
+  participant L2 as L2 SoldOutFlag
+  participant R as L3 Redis
+  participant DB as L4 Postgres
+  U->>CDN: POST /sales/42/reservations (Idempotency-Key)
+  alt SOLD_OUT flag cached at edge
+    CDN-->>U: 409 SOLD_OUT (answered at L1)
+  else
+    CDN->>GW: forward
+    GW->>GW: verify JWT, rate limit
+    GW->>RC: reserve
+    RC->>L2: isSoldOut?
+    alt sold out locally
+      L2-->>U: 409 SOLD_OUT (answered at L2)
+    else
+      RC->>R: idempotency key seen?
+      alt seen
+        R-->>U: replay stored response (answered at L3)
+      else
+        RC->>R: tryAcquire token (Lua atomic)
+        alt no token
+          R-->>U: 409 SOLD_OUT and publish StockSoldOut
+        else token
+          RC->>DB: BEGIN, claim unit SKIP LOCKED, insert reservation, outbox, COMMIT
+          DB-->>RC: reservation id, expires_at
+          RC->>R: store response under idempotency key
+          RC-->>U: 201 RESERVED (only YES comes from L4)
+        end
+      end
+    end
+  end

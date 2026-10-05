@@ -1,0 +1,39 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam backgroundColor white
+title SALESTORM — Container Diagram
+
+actor Customer
+cloud "CDN / WAF\n(L1 pages + SOLD_OUT)" as CDN
+node "API Gateway\nJWT, rate limit, Idempotency-Key" as GW
+node "Waiting Room" as WR
+node "Product/Sale Service\n(L2 local cache)" as PS
+node "Cart Service" as CS
+node "Checkout Orchestrator\nFacade + Saga" as CK
+node "Inventory Service" as INV
+node "Payment Service" as PAY
+node "Order Service" as ORD
+node "Shipment / Notification" as SN
+database "Redis L3\ntokens + idempotency" as R
+database "Postgres L4\nsource of truth" as DB
+queue "Kafka\n(via outbox)" as K
+cloud "Payment Gateway" as PG
+
+Customer --> CDN
+CDN --> GW
+GW --> WR
+GW --> PS
+GW --> CS
+WR --> CK
+CK --> INV
+CK --> PAY
+INV --> R
+INV --> DB
+PAY --> DB
+PAY --> PG
+CK --> DB : outbox write
+DB --> K : outbox relay
+K --> ORD
+K --> SN
+ORD --> DB
+@enduml

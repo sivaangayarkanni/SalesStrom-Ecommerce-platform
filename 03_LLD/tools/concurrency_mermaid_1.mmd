@@ -1,0 +1,14 @@
+flowchart TB
+  A[10,000 Buy clicks] --> B[L0 Browser debounce - double clicks removed]
+  B --> C[L1 CDN and WAF - bots blocked, per-user rate limit]
+  C --> D[API Gateway - JWT check, Idempotency-Key required]
+  D --> E[Waiting Room - admits a controlled rate]
+  E --> F{L2 local SOLD_OUT flag set?}
+  F -->|yes| X1[409 SOLD_OUT, no network call]
+  F -->|no| G{L3 IdempotencyGuard - key seen before?}
+  G -->|yes| X2[Replay stored response]
+  G -->|no| H{L3 Redis token pool - pop token}
+  H -->|empty| X3[409 SOLD_OUT and publish StockSoldOut]
+  H -->|token| I[L4 Postgres transaction - claim unit row]
+  I -->|row claimed| OK[201 RESERVED, expires in 5 min]
+  I -->|no row or unique violation| X4[409 SOLD_OUT or ALREADY_RESERVED, return token]

@@ -1,0 +1,44 @@
+@startuml hld_architecture
+title SALESTORM - HLD with Cache-Hit Ladder
+skinparam componentStyle rectangle
+actor Customer
+rectangle "L0 Browser cache" as L0 #E3F2FD
+rectangle "L1 CDN + WAF\n(pages, SOLD_OUT flag)" as CDN #BBDEFB
+rectangle "Load Balancer" as LB
+rectangle "API Gateway\n(JWT, rate limit, Idempotency-Key)" as GW
+rectangle "Waiting Room" as WR
+rectangle "Product/Sale Service\n(L2 local cache)" as PS #90CAF9
+rectangle "Cart Service" as CS
+rectangle "Checkout Orchestrator\n(Facade + Saga)" as CK
+rectangle "Inventory & Reservation" as INV
+rectangle "Payment Service" as PAY
+rectangle "Order Service" as ORD
+rectangle "Shipment" as SH
+rectangle "Notification" as NT
+rectangle "Reconciliation Worker" as RC
+database "L3 Redis\n(token pool, idempotency, cart)" as R #64B5F6
+database "L4 Postgres\n(source of truth)" as DB #FFE082
+queue "Kafka (via outbox)" as K
+cloud "Payment Gateway" as PG
+Customer --> L0
+L0 --> CDN
+CDN --> LB
+LB --> GW
+GW --> PS
+GW --> CS
+GW --> WR
+WR --> CK
+CK --> INV : sync
+CK --> PAY : sync
+INV --> R
+INV --> DB
+PAY --> DB
+PAY --> PG : Adapter + Circuit Breaker
+DB ..> K : outbox relay
+K ..> ORD
+K ..> SH
+K ..> NT
+K ..> RC
+ORD --> DB
+note bottom of R : Caches can say NO.\nOnly the database can say YES.
+@enduml

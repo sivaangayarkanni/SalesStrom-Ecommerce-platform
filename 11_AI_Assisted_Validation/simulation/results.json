@@ -1,0 +1,53 @@
+{
+  "safe": {
+    "mode": "safe",
+    "users": 10000,
+    "requests_total": 10200,
+    "duplicate_requests": 200,
+    "elapsed_real_s": 1.14,
+    "answered_per_tier": {
+      "L1_cdn_sold_out": 9921,
+      "L2_local_flag": 163,
+      "L3_pool_reject": 7,
+      "idempotent_replay": 2,
+      "reached_db": 107
+    },
+    "duplicates_by_tier": {
+      "idempotent_replay": 2,
+      "L2_local_flag": 1,
+      "L1_cdn_sold_out": 197
+    },
+    "duplicates_collapsed": 200,
+    "final": {
+      "AVAILABLE": 0,
+      "RESERVED": 0,
+      "SOLD": 100
+    },
+    "sold": 100,
+    "failed_payments": 7,
+    "abandoned_ttl_expired": 0,
+    "auth_voided_expired": 0,
+    "resold_units": 6,
+    "outboxed_events": 100,
+    "outbox_retries_while_down": 5,
+    "orders_created": 100,
+    "orders_created_after_outage": 100,
+    "captured_payments": 100,
+    "max_charges_per_customer": 1,
+    "db_unique_rejects": 0,
+    "skip_locked_hits": 0,
+    "invariant_checks": 415,
+    "violations": [],
+    "invariants": "PASS"
+  },
+  "naive": {
+    "mode": "naive",
+    "users": 10000,
+    "elapsed_real_s": 1.04,
+    "sold": 650,
+    "oversold_by": 550,
+    "final_stock_counter": 0,
+    "available_plus_sold": 650,
+    "invariants": "FAIL"
+  }
+}

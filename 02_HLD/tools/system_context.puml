@@ -1,0 +1,17 @@
+@startuml system_context
+title SALESTORM - System Context
+actor Customer
+actor "Ops / Support" as Ops
+rectangle "SALESTORM Platform" as S #FFE082
+cloud "CDN + WAF" as CDN
+cloud "Payment Gateway" as PG
+cloud "Logistics Partner" as LP
+cloud "SMS / Email / Push" as NP
+Customer --> CDN : HTTPS
+CDN --> S
+Ops --> S : admin
+S --> PG : authorize / capture / void
+PG --> S : signed webhooks
+S --> LP : shipments
+S --> NP : notifications
+@enduml

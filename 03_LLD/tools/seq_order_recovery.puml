@@ -1,0 +1,19 @@
+@startuml seq_order_recovery
+title Payment succeeds, Order Service down 30 s
+participant "Payment Service" as P
+database Postgres as DB
+queue Kafka as K
+participant "Order Service" as O
+participant "Reconciliation" as RC
+P -> DB : AUTHORIZED + outbox PaymentAuthorized (one txn)
+DB -> K : relay publishes
+K -x O : Order Service down
+note over K : event retained; reservation extended
+O -> K : recovers, consumes
+O -> DB : INSERT order (UNIQUE payment) + outbox OrderCreated
+DB -> K : OrderCreated
+K -> P : capture (same key)
+P -> DB : CAPTURED; reservation SOLD
+RC -> DB : authorized without order > 15 min?
+RC -> P : void + release (compensation)
+@enduml

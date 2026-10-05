@@ -1,0 +1,13 @@
+@startuml state_reservation
+[*] --> AVAILABLE
+AVAILABLE --> RESERVED : unit claimed
+RESERVED --> PAYMENT_PENDING : checkout
+PAYMENT_PENDING --> CONFIRMED : authorized (fencing ok)
+CONFIRMED --> SOLD : order persisted + captured
+RESERVED --> TIMEOUT : expires_at
+PAYMENT_PENDING --> PAYMENT_FAILED : declined / voided
+TIMEOUT --> RELEASED
+PAYMENT_FAILED --> RELEASED
+RELEASED --> AVAILABLE : token returned
+SOLD --> [*]
+@enduml

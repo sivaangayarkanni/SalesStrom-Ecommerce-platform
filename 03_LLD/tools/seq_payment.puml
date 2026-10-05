@@ -1,0 +1,26 @@
+@startuml seq_payment
+title Payment - success / decline / timeout / duplicate
+actor Customer as C
+participant "Payment Service" as P
+database Postgres as DB
+participant "Payment Gateway" as G
+C -> P : POST /payments (key K)
+P -> DB : INSERT payment INITIATED (UNIQUE key K)
+P -> G : authorize (key K, timeout 3s)
+alt authorized
+  G --> P : txn_ref
+  P -> DB : AUTHORIZED + outbox PaymentAuthorized
+  P --> C : 202
+else declined
+  G --> P : declined
+  P -> DB : FAILED + outbox PaymentFailed (unit released)
+  P --> C : 402
+else timeout
+  P -> DB : TIMEOUT
+  P -> G : status(K) with backoff
+  G --> P : real status
+end
+C -> P : retry POST /payments (key K)
+P -> DB : INSERT key K -> unique violation
+P --> C : replay first result (no 2nd charge)
+@enduml

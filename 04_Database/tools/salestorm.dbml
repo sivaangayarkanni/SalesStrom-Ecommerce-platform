@@ -1,0 +1,236 @@
+// SALESTORM – paste into https://dbdiagram.io (generated from schema_postgres.sql)
+
+Table customer {
+  customer_id bigserial [pk]
+  email varchar(255) [not null, unique]
+  full_name varchar(200) [not null]
+  phone varchar(30)
+  status varchar(20) [not null]
+  created_at timestamptz [not null]
+}
+
+Table category {
+  category_id bigserial [pk]
+  name varchar(120) [not null, unique]
+  parent_id bigint
+}
+
+Table product {
+  product_id bigserial [pk]
+  category_id bigint [not null]
+  sku varchar(64) [not null, unique]
+  name varchar(200) [not null]
+  description text
+  list_price numeric(12,2) [not null]
+  currency char(3) [not null]
+  version int [not null]
+  updated_at timestamptz [not null]
+}
+
+Table sale {
+  sale_id bigserial [pk]
+  name varchar(200) [not null]
+  starts_at timestamptz [not null]
+  ends_at timestamptz [not null]
+  status varchar(20) [not null]
+  max_per_customer int [not null]
+  reservation_ttl_seconds int [not null]
+  version int [not null]
+}
+
+Table deal {
+  deal_id bigserial [pk]
+  sale_id bigint [not null]
+  product_id bigint [not null]
+  deal_price numeric(12,2) [not null]
+}
+
+Table coupon {
+  coupon_id bigserial [pk]
+  code varchar(40) [not null, unique]
+  discount_type varchar(10) [not null]
+  discount_value numeric(12,2) [not null]
+  max_redemptions int [not null]
+  redeemed_count int [not null]
+  valid_from timestamptz [not null]
+  valid_to timestamptz [not null]
+}
+
+Table inventory {
+  inventory_id bigserial [pk]
+  sale_id bigint [not null]
+  product_id bigint [not null]
+  total int [not null]
+  available int [not null]
+  reserved int [not null]
+  sold int [not null]
+  version int [not null]
+  updated_at timestamptz [not null]
+}
+
+Table inventory_unit {
+  unit_id bigserial [pk]
+  inventory_id bigint [not null]
+  unit_no int [not null]
+  status varchar(20) [not null]
+  reservation_id bigint
+  version int [not null]
+  updated_at timestamptz [not null]
+}
+
+Table inventory_reservation {
+  reservation_id bigserial [pk]
+  sale_id bigint [not null]
+  customer_id bigint [not null]
+  product_id bigint [not null]
+  unit_id bigint
+  status varchar(20) [not null]
+  idempotency_key varchar(100) [not null, unique]
+  business_key char(64) [not null]
+  fencing_version int [not null]
+  expires_at timestamptz [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table idempotency_record {
+  idempotency_key varchar(100) [pk]
+  customer_id bigint [not null]
+  endpoint varchar(100) [not null]
+  request_hash char(64) [not null]
+  status varchar(20) [not null]
+  response_code int
+  response_body jsonb
+  created_at timestamptz [not null]
+  expires_at timestamptz [not null]
+}
+
+Table cart {
+  cart_id bigserial [pk]
+  customer_id bigint [not null]
+  status varchar(20) [not null]
+  updated_at timestamptz [not null]
+}
+
+Table cart_item {
+  cart_item_id bigserial [pk]
+  cart_id bigint [not null]
+  product_id bigint [not null]
+  sale_id bigint
+  reservation_id bigint
+  quantity int [not null]
+  unit_price numeric(12,2) [not null]
+}
+
+Table orders {
+  order_id bigserial [pk]
+  customer_id bigint [not null]
+  reservation_id bigint [unique]
+  coupon_id bigint
+  status varchar(20) [not null]
+  total_amount numeric(12,2) [not null]
+  currency char(3) [not null]
+  idempotency_key varchar(100) [not null, unique]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table order_item {
+  order_item_id bigserial [pk]
+  order_id bigint [not null]
+  product_id bigint [not null]
+  unit_id bigint
+  quantity int [not null]
+  unit_price numeric(12,2) [not null]
+}
+
+Table payment {
+  payment_id bigserial [pk]
+  reservation_id bigint [not null]
+  order_id bigint
+  customer_id bigint [not null]
+  provider varchar(40) [not null]
+  provider_txn_ref varchar(100) [unique]
+  idempotency_key varchar(100) [not null, unique]
+  amount numeric(12,2) [not null]
+  currency char(3) [not null]
+  status varchar(20) [not null]
+  fencing_version int [not null]
+  failure_reason varchar(200)
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table shipment {
+  shipment_id bigserial [pk]
+  order_id bigint [not null, unique]
+  carrier varchar(60)
+  tracking_number varchar(100) [unique]
+  status varchar(20) [not null]
+  updated_at timestamptz [not null]
+}
+
+Table notification {
+  notification_id bigserial [pk]
+  customer_id bigint [not null]
+  channel varchar(10) [not null]
+  template varchar(60) [not null]
+  payload jsonb
+  status varchar(10) [not null]
+  dedupe_key varchar(120) [not null, unique]
+  created_at timestamptz [not null]
+}
+
+Table outbox_event {
+  event_id uuid [pk]
+  aggregate_type varchar(40) [not null]
+  aggregate_id bigint [not null]
+  event_type varchar(60) [not null]
+  payload jsonb [not null]
+  status varchar(12) [not null]
+  attempts int [not null]
+  created_at timestamptz [not null]
+  published_at timestamptz
+}
+
+Table audit_log {
+  audit_id bigserial [pk]
+  actor varchar(100) [not null]
+  action varchar(60) [not null]
+  entity_type varchar(40) [not null]
+  entity_id bigint [not null]
+  before_state jsonb
+  after_state jsonb
+  trace_id varchar(64)
+  created_at timestamptz [not null]
+}
+
+Ref: category.parent_id > category.category_id
+Ref: product.category_id > category.category_id
+Ref: deal.sale_id > sale.sale_id
+Ref: deal.product_id > product.product_id
+Ref: inventory.sale_id > sale.sale_id
+Ref: inventory.product_id > product.product_id
+Ref: inventory_unit.inventory_id > inventory.inventory_id
+Ref: inventory_reservation.sale_id > sale.sale_id
+Ref: inventory_reservation.customer_id > customer.customer_id
+Ref: inventory_reservation.product_id > product.product_id
+Ref: inventory_reservation.unit_id > inventory_unit.unit_id
+Ref: idempotency_record.customer_id > customer.customer_id
+Ref: cart.customer_id > customer.customer_id
+Ref: cart_item.cart_id > cart.cart_id
+Ref: cart_item.product_id > product.product_id
+Ref: cart_item.sale_id > sale.sale_id
+Ref: cart_item.reservation_id > inventory_reservation.reservation_id
+Ref: orders.customer_id > customer.customer_id
+Ref: orders.reservation_id > inventory_reservation.reservation_id
+Ref: orders.coupon_id > coupon.coupon_id
+Ref: order_item.order_id > orders.order_id
+Ref: order_item.product_id > product.product_id
+Ref: order_item.unit_id > inventory_unit.unit_id
+Ref: payment.reservation_id > inventory_reservation.reservation_id
+Ref: payment.order_id > orders.order_id
+Ref: payment.customer_id > customer.customer_id
+Ref: shipment.order_id > orders.order_id
+Ref: notification.customer_id > customer.customer_id
+Ref: inventory_unit.reservation_id > inventory_reservation.reservation_id

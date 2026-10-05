@@ -1,0 +1,132 @@
+@startuml class_diagram
+title SALESTORM - Core classes (Inventory, Payment, Order)
+interface TokenPool {
+  +tryAcquire(saleId): boolean
+  +release(saleId)
+}
+interface IdempotencyStore {
+  +find(key)
+  +saveIfAbsent(key, hash): boolean
+  +complete(key, resp)
+}
+interface InventoryUnitRepository {
+  +claimAvailable(invId)
+  +markSold(unitId)
+  +free(unitId)
+}
+interface ReservationRepository
+class RedisTokenPool
+class DbFallbackTokenPool
+class SoldOutFlag {
+  -soldOut: boolean
+  +onStockSoldOut()
+  +onStockReleased()
+}
+class ReservationService {
+  +reserve(cmd)
+  +confirm(id, fencingVersion)
+  +release(id, reason)
+  +expireDue()
+}
+class OutboxWriter {
+  +write(aggregate, type, payload)
+}
+TokenPool <|.. RedisTokenPool
+TokenPool <|.. DbFallbackTokenPool
+ReservationService --> TokenPool
+ReservationService --> InventoryUnitRepository
+ReservationService --> ReservationRepository
+ReservationService --> OutboxWriter
+
+interface PaymentGateway {
+  +authorize(req, key)
+  +capture(ref, key)
+  +voidAuth(ref)
+  +status(key)
+}
+class RazorpayAdapter
+class StripeAdapter
+class CircuitBreakerGateway
+class CircuitBreaker
+class PaymentProviderFactory {
+  +forMethod(method, region): PaymentGateway
+}
+class PaymentService {
+  +authorize()
+  +capture()
+  +voidAuth()
+  +reconcile()
+}
+PaymentGateway <|.. RazorpayAdapter
+PaymentGateway <|.. StripeAdapter
+PaymentGateway <|.. CircuitBreakerGateway
+CircuitBreakerGateway o-- PaymentGateway
+CircuitBreakerGateway --> CircuitBreaker
+PaymentProviderFactory ..> PaymentGateway
+PaymentService --> PaymentProviderFactory
+PaymentService --> IdempotencyStore
+PaymentService --> OutboxWriter
+
+class CheckoutFacade {
+  +checkout(customer, reservation, key)
+}
+class CheckoutSaga {
+  +start()
+  +compensate(reason)
+}
+interface PricingStrategy {
+  +price(product, sale, coupon)
+}
+class FlashSalePricing
+class CouponPricing
+interface OrderState {
+  +next(order, event): OrderState
+}
+class CreatedState
+class PaymentPendingState
+class ConfirmedState
+class ShippedState
+class DeliveredState
+class CancelledState
+class Order {
+  -state: OrderState
+  -version: int
+  +transitionTo(event)
+}
+class OrderService {
+  +createFromPayment(evt)
+  +cancel(id)
+}
+class OrderEventPublisher {
+  +subscribe(o)
+  +publish(e)
+}
+interface OrderObserver {
+  +onEvent(e)
+}
+class NotificationObserver
+class ShipmentObserver
+interface DeliveryPartnerAdapter {
+  +createShipment(order)
+  +track(ref)
+}
+CheckoutFacade --> CheckoutSaga
+CheckoutSaga --> PricingStrategy
+CheckoutSaga --> ReservationService
+CheckoutSaga --> PaymentService
+PricingStrategy <|.. FlashSalePricing
+PricingStrategy <|.. CouponPricing
+OrderState <|.. CreatedState
+OrderState <|.. PaymentPendingState
+OrderState <|.. ConfirmedState
+OrderState <|.. ShippedState
+OrderState <|.. DeliveredState
+OrderState <|.. CancelledState
+Order --> OrderState
+OrderService --> Order
+OrderService --> OrderEventPublisher
+OrderEventPublisher --> OrderObserver
+OrderObserver <|.. NotificationObserver
+OrderObserver <|.. ShipmentObserver
+ShipmentObserver --> DeliveryPartnerAdapter
+@enduml

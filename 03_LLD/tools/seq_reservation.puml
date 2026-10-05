@@ -1,0 +1,33 @@
+@startuml seq_reservation
+title Purchase / reservation - which cache tier answers
+actor Customer as U
+participant "L1 CDN" as CDN
+participant "API Gateway" as GW
+participant "L2 SoldOutFlag" as L2
+participant "L3 Redis" as R
+database "L4 Postgres" as DB
+U -> CDN : POST /sales/42/reservations (Idempotency-Key)
+alt SOLD_OUT at edge
+  CDN --> U : 409 SOLD_OUT (L1)
+else
+  CDN -> GW : forward (JWT, rate limit)
+  GW -> L2 : sold out?
+  alt yes
+    L2 --> U : 409 SOLD_OUT (L2)
+  else
+    GW -> R : idempotency key seen?
+    alt seen
+      R --> U : replay stored response (L3)
+    else
+      GW -> R : tryAcquire token (Lua)
+      alt pool empty
+        R --> U : 409 SOLD_OUT + publish StockSoldOut
+      else token
+        GW -> DB : BEGIN; claim unit FOR UPDATE SKIP LOCKED;\ninsert reservation; counters; outbox; COMMIT
+        DB --> GW : reservation id
+        GW --> U : 201 RESERVED (YES only from L4)
+      end
+    end
+  end
+end
+@enduml

@@ -1,0 +1,29 @@
+@startuml deployment
+title SALESTORM - Deployment (1 region, 3 AZs)
+cloud "Global CDN + WAF" as CDN
+node "Regional Load Balancer" as LB
+node "AZ1" {
+  node "K8s nodes (all services)" as K1
+  database "Postgres Primary" as PGP
+  database "Redis shard" as R1
+  queue "Kafka broker 1" as KF1
+}
+node "AZ2" {
+  node "K8s nodes " as K2
+  database "Postgres Sync Standby" as PGS
+  database "Redis replica" as R2
+  queue "Kafka broker 2" as KF2
+}
+node "AZ3" {
+  node "K8s nodes  " as K3
+  database "Postgres Read Replica" as PGR
+  database "Redis replica " as R3
+  queue "Kafka broker 3" as KF3
+}
+CDN --> LB
+LB --> K1
+LB --> K2
+LB --> K3
+PGP --> PGS : sync replication
+PGP --> PGR : async replication
+@enduml

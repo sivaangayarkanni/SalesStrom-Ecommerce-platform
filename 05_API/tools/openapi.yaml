@@ -1,0 +1,596 @@
+openapi: 3.0.3
+info:
+  title: SALESTORM Flash-Sale API
+  version: 1.0.0
+  description: 'Cache-Hit Ladder: caches may answer NO, only the database answers
+    YES.'
+servers:
+- url: https://api.salestorm.example/v1
+security:
+- bearerAuth: []
+paths:
+  /products/{productId}:
+    get:
+      tags:
+      - Catalog
+      summary: Get product (cached at L1 CDN max-age=300 and L2)
+      security: &id001 []
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          headers: &id002
+            Cache-Control:
+              schema:
+                type: string
+              description: CDN/L1 caching directive (Cache-Hit Ladder)
+            ETag:
+              schema:
+                type: string
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /sales/{saleId}:
+    get:
+      tags:
+      - Catalog
+      summary: Get sale config (L1 max-age=60, L2)
+      security: *id001
+      parameters:
+      - name: saleId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Sale
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sale'
+          headers: *id002
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /sales/{saleId}/stock-status:
+    get:
+      tags:
+      - Catalog
+      summary: Stock status; CDN-cacheable SOLD_OUT flag (max-age=1, purged on StockSoldOut/StockReleased)
+      security: *id001
+      parameters:
+      - name: saleId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockStatus'
+          headers: *id002
+  /carts/{cartId}/items:
+    post:
+      tags:
+      - Cart
+      summary: Add item to cart
+      parameters:
+      - name: cartId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItemRequest'
+      responses:
+        '200':
+          description: Cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '400':
+          description: Invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /sales/{saleId}/reservations:
+    post:
+      tags:
+      - Inventory
+      summary: Reserve one unit (NO may be answered by L1/L2/L3; YES only by DB)
+      parameters:
+      - name: saleId
+        in: path
+        required: true
+        schema:
+          type: string
+      - &id003
+        $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationRequest'
+      responses:
+        '201':
+          description: Reserved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '200':
+          description: Idempotent replay of earlier response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: SOLD_OUT or ALREADY_RESERVED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Idempotency-Key reused with a different body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Waiting room – retry later
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /reservations/{reservationId}:
+    get:
+      tags:
+      - Inventory
+      summary: Get reservation
+      parameters:
+      - name: reservationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Reservation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+      - Inventory
+      summary: Release reservation
+      parameters:
+      - name: reservationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Released
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Already paid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /checkout:
+    post:
+      tags:
+      - Checkout
+      summary: Start checkout for a reservation
+      parameters:
+      - *id003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: Checkout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checkout'
+        '409':
+          description: Reservation expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid coupon
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /payments:
+    post:
+      tags:
+      - Payment
+      summary: Authorize payment (authorize-then-capture)
+      parameters:
+      - *id003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '202':
+          description: Authorized or pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '402':
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Duplicate in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Gateway unavailable (circuit open)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /payments/webhook:
+    post:
+      tags:
+      - Payment
+      summary: Gateway webhook (HMAC signature verified)
+      security: *id001
+      parameters:
+      - name: X-Signature
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Accepted
+        '401':
+          description: Bad signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /orders/{orderId}:
+    get:
+      tags:
+      - Order
+      summary: Get order
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /orders/{orderId}/cancel:
+    post:
+      tags:
+      - Order
+      summary: Cancel order
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+      - *id003
+      responses:
+        '202':
+          description: Cancelling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409':
+          description: Already shipped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /shipments/{shipmentId}/tracking:
+    get:
+      tags:
+      - Shipment
+      summary: Tracking events
+      parameters:
+      - name: shipmentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Tracking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tracking'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Same key on every retry; replays the stored response
+  schemas:
+    Error:
+      type: object
+      required:
+      - code
+      - message
+      - traceId
+      properties:
+        code:
+          type: string
+          example: SOLD_OUT
+        message: &id004
+          type: string
+        traceId: *id004
+    Product:
+      type: object
+      properties:
+        productId: *id004
+        name: *id004
+        price:
+          type: number
+        currency: *id004
+        version:
+          type: integer
+    Sale:
+      type: object
+      properties:
+        saleId: *id004
+        name: *id004
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        maxPerCustomer:
+          type: integer
+    StockStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - IN_STOCK
+          - SOLD_OUT
+    CartItemRequest:
+      type: object
+      required:
+      - productId
+      - quantity
+      properties:
+        productId: *id004
+        quantity:
+          type: integer
+          minimum: 1
+    Cart:
+      type: object
+      properties:
+        cartId: *id004
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItemRequest'
+    ReservationRequest:
+      type: object
+      required:
+      - productId
+      properties:
+        productId: *id004
+    Reservation:
+      type: object
+      properties:
+        reservationId: *id004
+        status:
+          type: string
+          enum:
+          - RESERVED
+          - PAYMENT_PENDING
+          - CONFIRMED
+          - SOLD
+          - PAYMENT_FAILED
+          - TIMEOUT
+          - RELEASED
+        expiresAt:
+          type: string
+          format: date-time
+    CheckoutRequest:
+      type: object
+      required:
+      - reservationId
+      - paymentMethod
+      properties:
+        reservationId: *id004
+        couponCode: *id004
+        paymentMethod: *id004
+    Checkout:
+      type: object
+      properties:
+        checkoutId: *id004
+        amount:
+          type: number
+        currency: *id004
+    PaymentRequest:
+      type: object
+      required:
+      - checkoutId
+      - paymentToken
+      properties:
+        checkoutId: *id004
+        paymentToken:
+          type: string
+          description: Gateway token – card data never reaches our servers
+    Payment:
+      type: object
+      properties:
+        paymentId: *id004
+        status:
+          type: string
+          enum:
+          - INITIATED
+          - AUTHORIZED
+          - CAPTURED
+          - FAILED
+          - TIMEOUT
+          - VOIDED
+          - REFUNDED
+    Order:
+      type: object
+      properties:
+        orderId: *id004
+        status:
+          type: string
+          enum:
+          - CREATED
+          - PAYMENT_PENDING
+          - CONFIRMED
+          - PROCESSING
+          - SHIPPED
+          - OUT_FOR_DELIVERY
+          - DELIVERED
+          - CANCELLED
+          - REFUNDED
+        totalAmount:
+          type: number
+    Tracking:
+      type: object
+      properties:
+        shipmentId: *id004
+        status: *id004
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              at:
+                type: string
+                format: date-time
+              status: *id004

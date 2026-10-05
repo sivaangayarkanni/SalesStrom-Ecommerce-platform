@@ -1,5 +1,7 @@
 # SALESTORM — Flash-Sale E-Commerce Platform
 
+**Team roles:** see [TEAM_OWNERSHIP.md](TEAM_OWNERSHIP.md) for what each student prepares, folder by folder.
+
 > **Live showcase:** [https://sivaangayarkanni.github.io/SalesStrom-Ecommerce-platform/](https://sivaangayarkanni.github.io/SalesStrom-Ecommerce-platform/)  
 > OpenAPI/Swagger: [api.html](https://sivaangayarkanni.github.io/SalesStrom-Ecommerce-platform/api.html)
 

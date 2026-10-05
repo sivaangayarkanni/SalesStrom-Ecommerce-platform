@@ -71,3 +71,10 @@ Solid arrows = synchronous; dotted = asynchronous events.
 > **Defend it**
 > - "Each service owns its own tables – no shared writes, so boundaries stay clean."
 > - "Only two sync hops on the critical path: reserve and authorize."
+
+## Resilience additions
+- Gateway: P2C load balancing, outlier ejection, `LoadShedder`, `RetryBudget`.
+- Product/Sale: singleflight + hedged reads (reads only). Inventory: salted token pool in Redis.
+- Expiry sweeper and outbox relay run as leaders with a Postgres lease + fencing token.
+- Order, Notification, Shipment dedupe with the `inbox_message` table.
+- Everything inside the red dashed line is the **flash-sale cell**. Details: [Production_Failure_Modes.md](Production_Failure_Modes.md).

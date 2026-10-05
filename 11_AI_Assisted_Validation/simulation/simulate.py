@@ -8,6 +8,8 @@ Safe mode models the layered design:
 Invariants are checked after every state-changing operation.
 --naive: read stock, sleep, write - no locks - to show overselling.
 Time is scaled: 1 simulated second = SCALE real seconds.
+--resilience: afterwards run resilience_sim.py (retry storm, inbox dedupe, fencing, salted hot key,
+singleflight, coordinated omission).
 """
 import argparse, json, os, random, threading, time
 from collections import Counter
@@ -315,6 +317,8 @@ if __name__ == "__main__":
     ap.add_argument("--users", type=int, default=10_000)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--json", help="merge result into this JSON file under key 'safe'/'naive'")
+    ap.add_argument("--resilience", action="store_true",
+                    help="also run the failure-mode scenarios in resilience_sim.py (retry storm, inbox, fencing, hot key)")
     a = ap.parse_args()
     threading.stack_size(256 * 1024)
     r = run_naive(a.users, a.seed) if a.naive else run_safe(a.users, a.seed)
@@ -323,3 +327,8 @@ if __name__ == "__main__":
         data = json.load(open(a.json)) if os.path.exists(a.json) else {}
         data[r["mode"]] = r
         json.dump(data, open(a.json, "w"), indent=2)
+    if a.resilience:
+        import subprocess, sys
+        cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "resilience_sim.py"),
+               "--seed", str(a.seed)] + (["--json", a.json] if a.json else [])
+        subprocess.run(cmd, check=True)

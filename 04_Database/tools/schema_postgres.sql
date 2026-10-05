@@ -116,13 +116,17 @@ CREATE TABLE inventory_reservation (
     idempotency_key VARCHAR(100) NOT NULL UNIQUE,
     business_key    CHAR(64)     NOT NULL,   -- sha256(customer_id,sale_id,product_id)
     fencing_version INT          NOT NULL DEFAULT 1,  -- bumped on expiry/release; late payment must match
-    expires_at      TIMESTAMPTZ  NOT NULL,
+    last_fence_token BIGINT      NOT NULL DEFAULT 0,  -- lease token of the last sweeper write; stale tokens rejected
+    expires_at      TIMESTAMPTZ  NOT NULL,            -- event-time deadline (sweeper compares against watermark)
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT uq_reservation_sale_customer UNIQUE (sale_id, customer_id)
 );
 CREATE INDEX idx_reservation_expiry ON inventory_reservation(expires_at)
     WHERE status IN ('RESERVED','PAYMENT_PENDING');   -- sweeper fallback scan
+-- Write-skew guard: a unit can belong to at most one live reservation, whatever the app code does
+CREATE UNIQUE INDEX uq_reservation_one_live_per_unit ON inventory_reservation(unit_id)
+    WHERE status IN ('RESERVED','PAYMENT_PENDING','CONFIRMED','SOLD');
 
 ALTER TABLE inventory_unit
     ADD CONSTRAINT fk_unit_reservation FOREIGN KEY (reservation_id)
@@ -205,6 +209,7 @@ CREATE TABLE payment (
     status          VARCHAR(20)  NOT NULL DEFAULT 'INITIATED'
                     CHECK (status IN ('INITIATED','AUTHORIZED','CAPTURED','FAILED','TIMEOUT','VOIDED','REFUNDED')),
     fencing_version INT          NOT NULL,                -- copy of reservation.fencing_version at initiation
+    gateway_event_at TIMESTAMPTZ,                         -- event time reported by the PSP (webhook occurred_at)
     failure_reason  VARCHAR(200),
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
@@ -247,10 +252,51 @@ CREATE TABLE outbox_event (
     payload         JSONB        NOT NULL,
     status          VARCHAR(12)  NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','PUBLISHED','FAILED')),
     attempts        INT          NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ  NOT NULL DEFAULT now(),  -- backoff with full jitter, set by the relay
+    publisher_fence_token BIGINT,                          -- relay lease token that published it
+    occurred_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),   -- event time (business moment), not publish time
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     published_at    TIMESTAMPTZ
 );
-CREATE INDEX idx_outbox_pending ON outbox_event(created_at) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_pending ON outbox_event(next_attempt_at) WHERE status = 'PENDING';
+
+-- ---------- Resilience: inbox (consumer dedupe), leases (fencing), late events ----------
+-- Inbox: at-least-once delivery + this PK = effectively-once handling at each consumer
+CREATE TABLE inbox_message (
+    consumer        VARCHAR(40)  NOT NULL
+                    CHECK (consumer IN ('ORDER','NOTIFICATION','SHIPMENT','RECONCILIATION','PAYMENT')),
+    message_id      UUID         NOT NULL,             -- = outbox_event.event_id
+    event_type      VARCHAR(60)  NOT NULL,
+    occurred_at     TIMESTAMPTZ  NOT NULL,             -- event time carried in the message
+    processed_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    PRIMARY KEY (consumer, message_id)
+);
+CREATE INDEX idx_inbox_processed ON inbox_message(processed_at);   -- purge rows older than Kafka retention
+
+-- Lease with a monotonically increasing fencing token (sweeper, outbox relay, reconciler leaders)
+CREATE TABLE lease (
+    lease_name      VARCHAR(80)  PRIMARY KEY,          -- e.g. 'reservation-sweeper:sale-1'
+    holder          VARCHAR(100),                      -- pod name of the current leader
+    fence_token     BIGINT       NOT NULL DEFAULT 0 CHECK (fence_token >= 0),  -- only ever increases
+    expires_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Side output for events that arrive after the watermark (e.g. PSP webhook after reservation expiry)
+CREATE TABLE reconciliation_case (
+    case_id         BIGSERIAL    PRIMARY KEY,
+    source          VARCHAR(40)  NOT NULL CHECK (source IN ('PAYMENT_WEBHOOK','SETTLEMENT_FILE','INVARIANT_JOB')),
+    payment_id      BIGINT       REFERENCES payment(payment_id),
+    reservation_id  BIGINT       REFERENCES inventory_reservation(reservation_id),
+    occurred_at     TIMESTAMPTZ  NOT NULL,             -- event time from the source
+    received_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    watermark_at    TIMESTAMPTZ  NOT NULL,             -- watermark when it arrived (occurred_at < watermark => late)
+    action          VARCHAR(20)  NOT NULL CHECK (action IN ('VOID_AUTH','REFUND','REATTACH_UNIT','NONE')),
+    status          VARCHAR(12)  NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','DONE','FAILED')),
+    dedupe_key      VARCHAR(120) NOT NULL UNIQUE,      -- e.g. 'PAYMENT_WEBHOOK:pay_123:authorized'
+    CHECK (received_at >= occurred_at - interval '5 minutes')   -- tolerate small clock skew only
+);
+CREATE INDEX idx_recon_open ON reconciliation_case(status, received_at) WHERE status = 'OPEN';
 
 CREATE TABLE audit_log (
     audit_id        BIGSERIAL PRIMARY KEY,
@@ -279,6 +325,7 @@ INSERT INTO deal(sale_id, product_id, deal_price) VALUES (1, 1, 9999.00);
 INSERT INTO inventory(sale_id, product_id, total, available) VALUES (1, 1, 100, 100);
 INSERT INTO inventory_unit(inventory_id, unit_no) SELECT 1, g FROM generate_series(1,100) g;
 INSERT INTO customer(email, full_name) SELECT 'user'||g||'@example.com', 'User '||g FROM generate_series(1,5) g;
+INSERT INTO lease(lease_name) VALUES ('reservation-sweeper:sale-1'), ('outbox-relay:p0'), ('reconciler');
 COMMIT;
 
 -- =====================================================================
@@ -348,3 +395,30 @@ COMMIT;
 -- (G) Outbox relay: claim a batch without double-publishing across relay instances
 -- SELECT event_id, event_type, payload FROM salestorm.outbox_event
 --  WHERE status='PENDING' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 100;
+
+-- (H) Inbox dedupe at a consumer (Order Service): same TX as the business write
+-- BEGIN;
+--   INSERT INTO salestorm.inbox_message(consumer, message_id, event_type, occurred_at)
+--   VALUES ('ORDER', :event_id, 'PaymentAuthorized', :occurred_at)
+--   ON CONFLICT DO NOTHING;                    -- 0 rows => already handled: commit offset, do nothing else
+--   -- only if 1 row was inserted: INSERT INTO orders ... ; INSERT INTO outbox_event ...
+-- COMMIT;
+
+-- (I) Acquire / renew a lease: every new holder gets a strictly larger fence_token
+-- UPDATE salestorm.lease
+--    SET holder = :me, fence_token = fence_token + 1, expires_at = now() + interval '10 seconds', updated_at = now()
+--  WHERE lease_name = 'reservation-sweeper:sale-1' AND (expires_at < now() OR holder = :me)
+-- RETURNING fence_token;                       -- 0 rows => someone else is leader
+
+-- (J) Fenced sweeper write: a paused ex-leader with an old token changes nothing
+-- UPDATE salestorm.inventory_reservation
+--    SET status = 'TIMEOUT', fencing_version = fencing_version + 1, last_fence_token = :token, updated_at = now()
+--  WHERE reservation_id = :rid AND status IN ('RESERVED','PAYMENT_PENDING') AND expires_at < :watermark
+--    AND last_fence_token <= :token
+--    AND :token = (SELECT fence_token FROM salestorm.lease WHERE lease_name = 'reservation-sweeper:sale-1');
+-- -- rowcount 0 => stale token (or already handled): stop, re-acquire the lease
+
+-- (K) Late PSP webhook (occurred_at before the watermark, reservation already expired) -> side output
+-- INSERT INTO salestorm.reconciliation_case(source, payment_id, reservation_id, occurred_at, watermark_at, action, dedupe_key)
+-- VALUES ('PAYMENT_WEBHOOK', :payment_id, :rid, :occurred_at, :watermark, 'VOID_AUTH', 'PAYMENT_WEBHOOK:' || :psp_ref || ':authorized')
+-- ON CONFLICT (dedupe_key) DO NOTHING;

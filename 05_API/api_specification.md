@@ -54,3 +54,9 @@ Rules: the **owner** is the only service that writes that data and publishes the
 > **Defend it**
 > - "Only creating business transactions needs Idempotency-Key; reads are cached at the ladder tiers."
 > - "Each event has one owner; consumers are idempotent because delivery is at-least-once."
+
+## Client retry contract (ADR-009)
+- Retry only with the **same `Idempotency-Key`**; a new key is a new purchase attempt.
+- On **503** honour `Retry-After`; otherwise exponential backoff with full jitter (`random(0, min(2 s, 100 ms·2^n))`), max 3 attempts.
+- SDK keeps a retry budget: when more than 10% of recent calls were retries, it stops retrying and shows "high demand, try again".
+- Webhooks from the PSP carry their own event time (`occurred_at`); late ones are reconciled, not applied.

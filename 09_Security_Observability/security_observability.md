@@ -22,6 +22,12 @@
 | Tokens remaining vs `available` | Detect drift |
 | Reservation success / SOLD_OUT / ALREADY_RESERVED / expiry counts | Business health |
 | Payment authorize success/fail/timeout rate, breaker state | Gateway health |
+| Retry ratio (retries / calls) vs 10% budget; shed (503) rate | Early warning of a retry storm / metastable state |
+| Per-endpoint phi (suspicion) and ejected-host count | Gray failure detection |
+| Inbox hit rate (duplicates skipped) per consumer | Shows redelivery volume; should be small |
+| Lease holder + fence token changes | Leader churn on sweeper / relay |
+| Watermark lag and `reconciliation_case` OPEN count | Late events waiting for void/refund |
+| Latency as HdrHistogram from intended start (load tests) | No coordinated omission |
 | Order conversion (reserved → sold) | Business KPI |
 | Kafka consumer lag, DLQ size, outbox unpublished count | Async health |
 | DB lock wait time, connection pool usage | Bottleneck detection |

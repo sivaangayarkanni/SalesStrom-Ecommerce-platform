@@ -123,6 +123,7 @@ CREATE TABLE inventory_reservation (
     idempotency_key VARCHAR(100) NOT NULL,
     business_key CHAR(64) NOT NULL,
     fencing_version INT NOT NULL DEFAULT 1,
+    last_fence_token BIGINT NOT NULL DEFAULT 0,   -- lease token of last sweeper write; stale tokens rejected
     expires_at   TIMESTAMP(3) NOT NULL,
     created_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -134,7 +135,11 @@ CREATE TABLE inventory_reservation (
     CONSTRAINT fk_res_customer FOREIGN KEY (customer_id) REFERENCES customer(customer_id),
     CONSTRAINT fk_res_product FOREIGN KEY (product_id) REFERENCES product(product_id),
     CONSTRAINT fk_res_unit FOREIGN KEY (unit_id) REFERENCES inventory_unit(unit_id),
-    INDEX idx_reservation_expiry (status, expires_at)
+    INDEX idx_reservation_expiry (status, expires_at),
+    -- emulates the Postgres partial unique index: one live reservation per unit (write-skew guard)
+    live_unit_id BIGINT GENERATED ALWAYS AS
+        (CASE WHEN status IN ('RESERVED','PAYMENT_PENDING','CONFIRMED','SOLD') THEN unit_id ELSE NULL END) STORED,
+    CONSTRAINT uq_reservation_one_live_per_unit UNIQUE (live_unit_id)
 ) ENGINE=InnoDB;
 
 ALTER TABLE inventory_unit
@@ -229,6 +234,7 @@ CREATE TABLE payment (
     currency     CHAR(3) NOT NULL DEFAULT 'INR',
     status       VARCHAR(20) NOT NULL DEFAULT 'INITIATED',
     fencing_version INT NOT NULL,
+    gateway_event_at TIMESTAMP(3) NULL,            -- event time reported by the PSP webhook
     failure_reason VARCHAR(200) NULL,
     created_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -283,10 +289,54 @@ CREATE TABLE outbox_event (
     payload      JSON NOT NULL,
     status       VARCHAR(12) NOT NULL DEFAULT 'PENDING',
     attempts     INT NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),   -- backoff + full jitter
+    publisher_fence_token BIGINT NULL,
+    occurred_at  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),      -- event time
     created_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     published_at TIMESTAMP(3) NULL,
     CONSTRAINT ck_outbox_status CHECK (status IN ('PENDING','PUBLISHED','FAILED')),
-    INDEX idx_outbox_pending (status, created_at)
+    INDEX idx_outbox_pending (status, next_attempt_at)
+) ENGINE=InnoDB;
+
+-- ---------- Resilience: inbox, leases (fencing), late events ----------
+CREATE TABLE inbox_message (
+    consumer     VARCHAR(40) NOT NULL,
+    message_id   CHAR(36) NOT NULL,              -- = outbox_event.event_id
+    event_type   VARCHAR(60) NOT NULL,
+    occurred_at  TIMESTAMP(3) NOT NULL,
+    processed_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (consumer, message_id),
+    CONSTRAINT ck_inbox_consumer CHECK (consumer IN ('ORDER','NOTIFICATION','SHIPMENT','RECONCILIATION','PAYMENT')),
+    INDEX idx_inbox_processed (processed_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE lease (
+    lease_name   VARCHAR(80) PRIMARY KEY,
+    holder       VARCHAR(100) NULL,
+    fence_token  BIGINT NOT NULL DEFAULT 0,
+    expires_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    CONSTRAINT ck_lease_token CHECK (fence_token >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE reconciliation_case (
+    case_id      BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source       VARCHAR(40) NOT NULL,
+    payment_id   BIGINT NULL,
+    reservation_id BIGINT NULL,
+    occurred_at  TIMESTAMP(3) NOT NULL,
+    received_at  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    watermark_at TIMESTAMP(3) NOT NULL,
+    action       VARCHAR(20) NOT NULL,
+    status       VARCHAR(12) NOT NULL DEFAULT 'OPEN',
+    dedupe_key   VARCHAR(120) NOT NULL,
+    CONSTRAINT uq_recon_dedupe UNIQUE (dedupe_key),
+    CONSTRAINT ck_recon_source CHECK (source IN ('PAYMENT_WEBHOOK','SETTLEMENT_FILE','INVARIANT_JOB')),
+    CONSTRAINT ck_recon_action CHECK (action IN ('VOID_AUTH','REFUND','REATTACH_UNIT','NONE')),
+    CONSTRAINT ck_recon_status CHECK (status IN ('OPEN','DONE','FAILED')),
+    CONSTRAINT fk_recon_payment FOREIGN KEY (payment_id) REFERENCES payment(payment_id),
+    CONSTRAINT fk_recon_res FOREIGN KEY (reservation_id) REFERENCES inventory_reservation(reservation_id),
+    INDEX idx_recon_open (status, received_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE audit_log (
@@ -312,6 +362,7 @@ INSERT INTO inventory(sale_id, product_id, total, available) VALUES (1, 1, 100, 
 INSERT INTO inventory_unit(inventory_id, unit_no)
 WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 100)
 SELECT 1, n FROM seq;
+INSERT INTO lease(lease_name) VALUES ('reservation-sweeper:sale-1'), ('outbox-relay:p0'), ('reconciler');
 
 -- =====================================================================
 -- EXAMPLE TRANSACTIONS (commented)
@@ -335,3 +386,11 @@ SELECT 1, n FROM seq;
 -- (C) Late payment fencing
 -- UPDATE inventory_reservation SET status='CONFIRMED'
 --  WHERE reservation_id=@r AND fencing_version=@fv AND status='PAYMENT_PENDING';
+
+-- (H) Inbox dedupe:  INSERT IGNORE INTO inbox_message(consumer, message_id, event_type, occurred_at) VALUES ('ORDER', @eid, 'PaymentAuthorized', @occ);
+--     ROW_COUNT() = 0  => already processed, skip the business write.
+-- (I) Lease:  UPDATE lease SET holder=@me, fence_token=fence_token+1, expires_at=CURRENT_TIMESTAMP(3)+INTERVAL 10 SECOND
+--             WHERE lease_name='reservation-sweeper:sale-1' AND (expires_at < CURRENT_TIMESTAMP(3) OR holder=@me);
+-- (J) Fenced write: UPDATE inventory_reservation SET status='TIMEOUT', last_fence_token=@tok
+--             WHERE reservation_id=@r AND last_fence_token <= @tok
+--               AND @tok = (SELECT fence_token FROM lease WHERE lease_name='reservation-sweeper:sale-1');

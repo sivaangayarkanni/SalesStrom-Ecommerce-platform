@@ -33,3 +33,23 @@ Without our design, the inventory row in the DB. With it, the Redis token-pool k
 | DB fails | Failover to sync standby, waiting room holds users, tokens re-synced from DB |
 | Gateway fails | Circuit breaker opens, secondary provider or "try again", reservations held, timeouts reconciled |
 | AI validation | Simulation: 100 sold, 0 violations; naive mode oversold 550 – proves checks are real |
+
+## Failure-mode questions (see `02_HLD/Production_Failure_Modes.md`)
+
+**What stops a retry storm from taking you down?**
+Retries only for idempotent calls, with the same key; full-jitter backoff; a retry budget of 10% of calls; and a load shedder that returns 503 + Retry-After instead of queueing doomed work. In our model, naive retries after a 2 s blip never recovered; with these controls the system recovered in the first second.
+
+**Isn't a Redis lock enough for the expiry sweeper?**
+No. A paused process doesn't know its lock expired. Our lease lives in Postgres with a fencing token that only goes up, and every sweeper write checks it. A stale token changes 0 rows – verified on Postgres 17.
+
+**Kafka is at-least-once. How do you avoid duplicate orders?**
+Inbox table: each consumer inserts `(consumer, message_id)` in the same transaction as its work. Second delivery inserts 0 rows and is skipped. 113 deliveries → 100 orders, 0 duplicates in our run.
+
+**Your SKU is a hot key. Doesn't Redis melt?**
+The 100 tokens are split across 16 salted keys with fallback probing, and each node remembers empty sub-pools. Max 57 calls on any one key in our 10,000-buyer run, vs 10,000 on a single key.
+
+**How do you know your latency numbers are real?**
+Our load tests are open-loop: arrivals at a fixed rate, latency from the intended start time, HdrHistogram. A closed-loop test of a 2 s stall reported p99 = 1 ms; open-loop reported 1,902 ms.
+
+**What isolation level do you use and why isn't oversell a problem?**
+READ COMMITTED. Oversell is write skew; we prevent it by turning the read into a row lock (unit rows + SKIP LOCKED) and backing it with a partial UNIQUE and CHECK constraints, so we don't need SERIALIZABLE and its retry storms.

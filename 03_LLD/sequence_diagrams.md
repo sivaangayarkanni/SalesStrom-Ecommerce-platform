@@ -90,3 +90,7 @@ sequenceDiagram
   K->>N: OrderConfirmed, send email and SMS
 ```
 Recovery from a 30 s Order outage: `payment_order_design.md` section 4.
+
+## Resilience details now shown in the Draw.io sequences
+- **seq_payment:** authorize timeout → `RetryBudget` check → full-jitter sleep → retry with the *same* key; PSP endpoint chosen by phi-accrual health; a late webhook (event time before the watermark) goes to `reconciliation_case` and the authorization is voided.
+- **seq_order_recovery:** outbox rows back off with jitter (`next_attempt_at`); Order Service inserts into `inbox_message` before creating the order; a redelivered event hits the inbox and is skipped; the relay publishes only while it holds the lease (fence token).

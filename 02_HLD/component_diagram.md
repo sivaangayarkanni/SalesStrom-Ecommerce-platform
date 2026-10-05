@@ -48,3 +48,13 @@ flowchart TB
 > **Defend it**
 > - "Validation and idempotency happen *before* we touch stock, so duplicates never cost a lock."
 > - "The outbox row is written in the same transaction as the reservation – no event is ever lost."
+
+## Resilience components (red text in the diagram)
+| Component | Job |
+|---|---|
+| `LoadShedder` | Rejects early (503 + Retry-After) when queue wait would exceed 300 ms |
+| `RetryBudget` + `BackoffWithJitter` | Retries ≤ 10% of calls, full jitter, idempotent calls only |
+| `SingleflightCache` | One DB read per key per miss |
+| `HotKeySaltedTokenPool` | 16 Redis sub-pools for the sale SKU |
+| `LeaseManager` → `FencingToken` | Sweeper writes rejected if the token is stale |
+| `PhiAccrualDetector` | Marks slow-but-alive PSP endpoints as suspect |

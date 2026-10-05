@@ -88,6 +88,7 @@ Table inventory_reservation {
   idempotency_key varchar(100) [not null, unique]
   business_key char(64) [not null]
   fencing_version int [not null]
+  last_fence_token bigint [not null, default: 0, note: 'lease token of last sweeper write']
   expires_at timestamptz [not null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -156,6 +157,7 @@ Table payment {
   currency char(3) [not null]
   status varchar(20) [not null]
   fencing_version int [not null]
+  gateway_event_at timestamptz [note: 'event time from PSP webhook']
   failure_reason varchar(200)
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -189,8 +191,43 @@ Table outbox_event {
   payload jsonb [not null]
   status varchar(12) [not null]
   attempts int [not null]
+  next_attempt_at timestamptz [not null, note: 'backoff + full jitter']
+  publisher_fence_token bigint
+  occurred_at timestamptz [not null, note: 'event time']
   created_at timestamptz [not null]
   published_at timestamptz
+}
+
+Table inbox_message {
+  consumer varchar(40) [not null, note: 'ORDER | NOTIFICATION | SHIPMENT | RECONCILIATION | PAYMENT']
+  message_id uuid [not null, note: '= outbox_event.event_id']
+  event_type varchar(60) [not null]
+  occurred_at timestamptz [not null]
+  processed_at timestamptz [not null]
+  indexes {
+    (consumer, message_id) [pk]
+  }
+}
+
+Table lease {
+  lease_name varchar(80) [pk]
+  holder varchar(100)
+  fence_token bigint [not null, default: 0, note: 'only increases; stale holders rejected']
+  expires_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table reconciliation_case {
+  case_id bigserial [pk]
+  source varchar(40) [not null]
+  payment_id bigint
+  reservation_id bigint
+  occurred_at timestamptz [not null]
+  received_at timestamptz [not null]
+  watermark_at timestamptz [not null]
+  action varchar(20) [not null, note: 'VOID_AUTH | REFUND | REATTACH_UNIT | NONE']
+  status varchar(12) [not null]
+  dedupe_key varchar(120) [not null, unique]
 }
 
 Table audit_log {
@@ -234,3 +271,5 @@ Ref: payment.customer_id > customer.customer_id
 Ref: shipment.order_id > orders.order_id
 Ref: notification.customer_id > customer.customer_id
 Ref: inventory_unit.reservation_id > inventory_reservation.reservation_id
+Ref: reconciliation_case.payment_id > payment.payment_id
+Ref: reconciliation_case.reservation_id > inventory_reservation.reservation_id

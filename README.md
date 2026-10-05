@@ -29,12 +29,27 @@ Ran against: 10,200 requests (200 duplicates), 95% payment success / 5% failure,
 
 Full run: [`11_AI_Assisted_Validation/simulation/`](11_AI_Assisted_Validation/simulation/).
 
+## Designed for production failure modes
+
+Correct on the happy path isn't enough, so we went through 14 ways systems like this fail in production and built a control for each: **[02_HLD/Production_Failure_Modes.md](02_HLD/Production_Failure_Modes.md)** (diagram: [`resilience_controls.png`](02_HLD/drawio/resilience_controls.png)).
+
+| Scenario (from `resilience_sim.py`, seed 42) | Without the control | With it |
+|---|---|---|
+| 2 s Redis blip at 80% load | naive retries: 4.26× load, 16.7% goodput, never recovered | budget + jitter + shedding: 1.01× load, 97.2% goodput, recovered in the first second |
+| 30 s Order outage, 113 deliveries for 100 payments | 13 duplicate orders | inbox table: **0 duplicates** |
+| Paused sweeper wakes with a stale lease | 3 new buyers lose their unit | fencing token: 5 stale writes rejected, **0 affected** |
+| Hot SKU, 10,000 buyers | 10,000 ops on one Redis key | 16 salted sub-pools: max 57 ops/key, exactly **100** tokens granted |
+| 2,000 concurrent cache misses | 2,000 DB reads | singleflight: **1** |
+| 2 s server stall, load-test measurement | closed-loop p99 = 1 ms (wrong) | open-loop p99 = 1,902 ms (true) |
+
+Fencing, inbox dedupe and the write-skew guard were also checked on a real PostgreSQL 17 (`04_Database/tools/resilience_checks.sql`).
+
 ## Folder map
 
 | Folder | Contents |
 |--------|----------|
 | [`01_Requirements/`](01_Requirements/) | Requirements & assumptions |
-| [`02_HLD/`](02_HLD/) | System context, HLD, container, component, deployment + PlantUML / Draw.io |
+| [`02_HLD/`](02_HLD/) | System context, HLD, container, component, deployment, **production failure modes** + PlantUML / Draw.io |
 | [`03_LLD/`](03_LLD/) | Concurrency, payment/order, class / sequence / state diagrams |
 | [`04_Database/`](04_Database/) | ER design, Postgres + MySQL SQL, dbdiagram.io DBML |
 | [`05_API/`](05_API/) | OpenAPI (Swagger), Postman collection |
@@ -42,13 +57,13 @@ Full run: [`11_AI_Assisted_Validation/simulation/`](11_AI_Assisted_Validation/si
 | [`07_Design_Patterns/`](07_Design_Patterns/) | Patterns used |
 | [`08_Scalability_Reliability/`](08_Scalability_Reliability/) | Scale & reliability |
 | [`09_Security_Observability/`](09_Security_Observability/) | Security & observability |
-| [`10_ADR/`](10_ADR/) | Eight Architecture Decision Records |
+| [`10_ADR/`](10_ADR/) | Ten Architecture Decision Records |
 | [`11_AI_Assisted_Validation/`](11_AI_Assisted_Validation/) | Simulation, Locust, JMeter, AI usage note |
 | [`12_Presentation/`](12_Presentation/) | Pitch deck, script, jury Q&A, charts |
 
 ## Diagrams as images
 
-All 13 diagrams are built in **Draw.io** and exported as PNG, in `02_HLD/drawio`, `03_LLD/drawio` and `04_Database/drawio`. See them all in **[DIAGRAMS.md](DIAGRAMS.md)**.
+All 14 diagrams are built in **Draw.io** and exported as PNG, in `02_HLD/drawio`, `03_LLD/drawio` and `04_Database/drawio`. See them all in **[DIAGRAMS.md](DIAGRAMS.md)**.
 
 ![HLD](02_HLD/drawio/hld_architecture.png)
 
@@ -66,6 +81,8 @@ See **[13_Tools_Guide.md](13_Tools_Guide.md)** for Draw.io, PlantUML, Mermaid, S
 6. Authorize-then-capture  
 7. Outbox + Kafka + saga  
 8. Pessimistic on hot rows, optimistic elsewhere  
+9. Resilience controls: load shedding, retry budget, fencing tokens, inbox  
+10. Flash sale in its own cell + open-loop load testing  
 
 ## Pitch
 

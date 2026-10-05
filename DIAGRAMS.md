@@ -13,7 +13,7 @@
 
 Every diagram was built in **Draw.io (diagrams.net)** and exported to PNG with the Draw.io app. Open any `.drawio` file at [app.diagrams.net](https://app.diagrams.net) to edit it.
 
-PlantUML (`.puml`) and Mermaid (`.mmd`) sources are kept in each `tools/` folder as alternates.
+PlantUML (`.puml`) and Mermaid (`.mmd`) sources are kept in each `tools/` folder as alternates (they show the original design; the Draw.io files are the current version, including the resilience controls: load shedder, retry budget, singleflight, salted token pool, P2C LB, outlier ejection, flash-sale cell, inbox, lease/fencing).
 
 ## High-level design
 
@@ -41,11 +41,17 @@ Source: [`02_HLD/drawio/container.drawio`](02_HLD/drawio/container.drawio)
 
 Source: [`02_HLD/drawio/component.drawio`](02_HLD/drawio/component.drawio)
 
-### Deployment
+### Deployment (cell-based)
 
 ![deployment](02_HLD/drawio/deployment.png)
 
 Source: [`02_HLD/drawio/deployment.drawio`](02_HLD/drawio/deployment.drawio)
+
+### Resilience Controls (failure mode → control on the request path)
+
+![resilience_controls](02_HLD/drawio/resilience_controls.png)
+
+Source: [`02_HLD/drawio/resilience_controls.drawio`](02_HLD/drawio/resilience_controls.drawio) · write-up: [`02_HLD/Production_Failure_Modes.md`](02_HLD/Production_Failure_Modes.md)
 
 ## Low-level design
 

@@ -40,10 +40,22 @@
 
 **Self-healing invariant job (every 10 s):** compare Redis token count with `inventory.available`; check `available+reserved+sold = total`; fix tokens, alert on DB mismatch (should be impossible due to CHECK).
 
+## 4a. Overload and partial failure (see `02_HLD/Production_Failure_Modes.md`)
+| Situation | What we do | Evidence |
+|---|---|---|
+| 2 s Redis failover at 80% load | `LoadShedder` + retry budget + full-jitter backoff | model: recovered in the first second, 97.2% goodput; naive retries never recovered (16.7% goodput) |
+| Hot SKU on one Redis key | 16 salted sub-pools + per-node empty hints | model: max 57 ops on one key instead of 10,000; exactly 100 tokens granted |
+| Stock-status key expires mid-sale | Singleflight + TTL jitter | model: 2,000 misses → 1 DB read |
+| One pod / PSP endpoint slow but "healthy" | Outlier ejection, P2C balancing, phi-accrual | design |
+| Sweeper or relay pauses past its lease | Fencing token checked by Postgres | model + Postgres 17 check |
+| Sale overload | Separate cell; regular store unaffected | design |
+
+**Capacity (Little's law, L = λW):** reserve path 10,000 req/s × 20 ms = 200 in flight → 18 pods × 16 workers (69% busy). DB: ~107 requests ever reach Postgres; at 100 TX/s × 30 ms only ~3 connections are busy, so a PgBouncer pool of 40 is plenty. Target utilization < 70% everywhere.
+
 ## 5. Async reliability
-- Timeouts on every remote call; retries only for idempotent operations, exponential backoff + jitter.
+- Timeouts on every remote call; retries only for idempotent operations, exponential backoff with full jitter, retry budget 10%.
 - Dead-letter topics for poison messages, with alert and replay tool.
-- Idempotent consumers (`processed_event` table / unique constraints).
+- Idempotent consumers: `inbox_message (consumer, message_id)` table in the same TX + unique constraints.
 - Reconciliation worker: stuck TIMEOUT payments, authorized-without-order, expired reservations, nightly gateway settlement compare.
 
 > **Defend it**

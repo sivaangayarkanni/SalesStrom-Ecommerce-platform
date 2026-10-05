@@ -124,6 +124,19 @@ Two requests A and B, one unit left, both hold Redis tokens (e.g. token returned
 
 **Why we chose it:** it turns "10,000 people fighting over one number" into "100 separate locks nobody waits on", gives a deterministic last-unit result, and leaves an audit trail per physical unit. Trade-off: 100 rows per sale product (trivial storage) and a little more SQL complexity; for products with huge stock (e.g. 1 million) we'd switch to the conditional update on sharded counter rows.
 
+## 7a. Oversell is a write-skew problem
+Two transactions read the same fact ("1 unit left"), each decides on it, and each writes a different row (its own reservation). Neither conflicts with the other, so READ COMMITTED and REPEATABLE READ (snapshot isolation) both let them commit. That's exactly what our naive simulation does: it sold **650**.
+
+How we close it, without paying for SERIALIZABLE:
+1. **Materialize the conflict.** Stock is 100 unit rows; each TX locks one with `FOR UPDATE SKIP LOCKED`. Two TXs can't lock the same row, so the "read" becomes a lock.
+2. **Constraints as the backstop.** New partial unique index `uq_reservation_one_live_per_unit ON inventory_reservation(unit_id) WHERE status IN ('RESERVED','PAYMENT_PENDING','CONFIRMED','SOLD')`, plus `UNIQUE(sale_id, customer_id)`, `CHECK(available >= 0)` and `CHECK(available + reserved + sold = total)`.
+3. **Why not SERIALIZABLE?** It would catch it too, but at 10k req/s it turns contention into serialization failures and retries, which is a retry storm (see `02_HLD/Production_Failure_Modes.md` #2).
+
+Verified on PostgreSQL 17 with `04_Database/tools/resilience_checks.sql`: a second live reservation on the same unit fails with `unique_violation`; selling 101 fails the CHECK.
+
+## 7b. Sweeper fencing
+The expiry sweeper runs as a single leader holding the `lease` row `reservation-sweeper:sale-1`. Each new holder gets `fence_token + 1`. Every expiry write includes `AND last_fence_token <= :token AND :token = (SELECT fence_token FROM lease …)`. A sweeper that paused past its 10 s lease changes 0 rows and stops. A Redis lock alone can't do this, because the paused process doesn't know it lost the lock.
+
 ## 8. Transaction boundaries & consistency guarantees
 | Boundary | Inside one ACID transaction | Consistency |
 |---|---|---|

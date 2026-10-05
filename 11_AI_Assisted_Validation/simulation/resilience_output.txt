@@ -1,0 +1,107 @@
+== retry_storm
+{
+  "naive": {
+    "policy": "naive",
+    "fresh_requests": 480000,
+    "attempts": 2045760,
+    "retry_amplification": 4.26,
+    "retries": 1565760,
+    "succeeded": 80350,
+    "goodput_pct": 16.7,
+    "wasted_work": 481650,
+    "shed_fast_503": 0,
+    "gave_up": 384040,
+    "peak_queue": 1483860,
+    "recovered_seconds_after_blip": "not within 48 s",
+    "success_rate_last_10s_pct": 0.0
+  },
+  "controlled": {
+    "policy": "controlled",
+    "fresh_requests": 480000,
+    "attempts": 483560,
+    "retry_amplification": 1.01,
+    "retries": 3560,
+    "succeeded": 466377,
+    "goodput_pct": 97.2,
+    "wasted_work": 0,
+    "shed_fast_503": 17183,
+    "gave_up": 13623,
+    "peak_queue": 374,
+    "recovered_seconds_after_blip": 0,
+    "success_rate_last_10s_pct": 100.0
+  }
+}
+== order_outage
+{
+  "no_inbox": {
+    "inbox": false,
+    "events": 100,
+    "deliveries_incl_redelivery": 113,
+    "orders_created": 113,
+    "distinct_orders": 100,
+    "duplicate_orders": 13,
+    "consumer_attempts_during_outage_fixed_100ms": 11411,
+    "consumer_attempts_during_outage_backoff_jitter": 837
+  },
+  "with_inbox": {
+    "inbox": true,
+    "events": 100,
+    "deliveries_incl_redelivery": 113,
+    "orders_created": 100,
+    "distinct_orders": 100,
+    "duplicate_orders": 0,
+    "consumer_attempts_during_outage_fixed_100ms": 11411,
+    "consumer_attempts_during_outage_backoff_jitter": 837
+  }
+}
+== fencing
+{
+  "redis_lock_only": {
+    "fencing": false,
+    "stale_token": 7,
+    "current_token": 8,
+    "stale_writes_rejected": 0,
+    "stale_writes_applied": 5,
+    "new_buyers_who_lost_their_unit": 3
+  },
+  "with_fencing_token": {
+    "fencing": true,
+    "stale_token": 7,
+    "current_token": 8,
+    "stale_writes_rejected": 5,
+    "stale_writes_applied": 0,
+    "new_buyers_who_lost_their_unit": 0
+  }
+}
+== hot_key
+{
+  "sub_pools": 16,
+  "tokens": 100,
+  "buyers": 10000,
+  "tokens_granted": 100,
+  "distinct_buyers_granted": 100,
+  "tokens_left": 0,
+  "app_nodes": 50,
+  "sold_out_answers": 9900,
+  "redis_ops_total": 900,
+  "max_ops_on_one_key": 57,
+  "ops_on_single_unsalted_key_would_be": 10000
+}
+== singleflight
+{
+  "concurrent_misses": 2000,
+  "db_reads_without_singleflight": 2000,
+  "db_reads_with_singleflight": 1
+}
+== coordinated_omission
+{
+  "closed_loop_samples": 8001,
+  "closed_loop_p99_ms": 1.0,
+  "closed_loop_max_ms": 2001.0,
+  "open_loop_samples": 10000,
+  "open_loop_p99_ms": 1902.0,
+  "open_loop_p90_ms": 1002.0,
+  "open_loop_max_ms": 2001.0
+}
+== checks
+PASS

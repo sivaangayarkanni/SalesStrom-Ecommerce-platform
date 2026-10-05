@@ -14,6 +14,13 @@
 | **Transactional Outbox** | `OutboxWriter` + relay | No lost events between DB commit and Kafka | Extra table + relay process; at-least-once ⇒ idempotent consumers |
 | **Cache-Aside + Write-Invalidate** | L2/L3 caches, `SoldOutFlag` | Low latency reads, fast NO answers | Short staleness window (only ever errs on the side of NO) |
 | **Decorator** | `CircuitBreakerGateway`, metrics wrapper | Add resilience/metrics without changing adapters | Layers of wrapping |
+| **Retry with budget (Decorator)** | `RetryingClient` + `RetryBudget` + `BackoffWithJitter` | Retries without retry storms | A few calls fail that a retry would have saved |
+| **Load Shedding / Admission Control** | `LoadShedder` implements `AdmissionController` | Overload stays bounded instead of metastable | Some users see a fast 503 |
+| **Singleflight (Proxy)** | `SingleflightCache` | Cache stampede on hot keys | Waiters share one slow load |
+| **Hedged Request** | `HedgedReadClient` (reads only) | Tail latency from one slow replica | ~5% extra read load |
+| **Inbox (Idempotent Consumer)** | `InboxDeduplicator` + `inbox_message` | Duplicate Kafka deliveries → effectively-once | Extra table + purge job |
+| **Lease + Fencing Token** | `LeaseManager`, `FencingToken`, `lease` table | Split-brain leaders | Every leader write carries a token |
+| **Bulkhead / Cell** | Flash-sale cell | Blast radius | Duplicate infrastructure |
 
 ## Adding something new with minimal change
 **New payment provider (e.g. PayU):**

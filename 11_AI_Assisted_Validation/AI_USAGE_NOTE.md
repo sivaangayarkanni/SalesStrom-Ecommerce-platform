@@ -10,7 +10,8 @@
 | `schema_postgres.sql`, `schema_mysql.sql`, `.dbml` | Boilerplate DDL from our ER design | Checked constraints match guarantees G1–G5 |
 | `openapi.yaml`, Postman collection | API skeletons from our endpoint table | Opened in Swagger Editor / Postman import |
 | `simulate.py` | Simulation script of our design | Ran it: 100 sold, 0 invariant violations; naive mode oversold (650) – the control proves the checks work. We fixed the Order-outage window after the first run showed it didn't overlap the payments |
-| Locust / JMeter scripts | Load-test boilerplate | Syntax checked; target endpoints match the API spec |
+| Locust / JMeter scripts | Load-test boilerplate; later rewritten as open-loop (constant arrival rate) | Syntax checked / XML well-formed; target endpoints match the API spec; not yet run against a live deployment |
+| Failure-mode review (`Production_Failure_Modes.md`, ADR-009/010, `resilience_sim.py`, `resilience_checks.sql`) | Drafting the write-up, the scenario simulation and SQL checks from the list of failure modes we chose to cover | Ran the simulation (PASS) and the SQL checks on PostgreSQL 17; every number in the docs is copied from those outputs |
 
 **Prompt summary:** "Given our design decisions [listed], write requirements, HLD/LLD docs, Mermaid diagrams, SQL schema, OpenAPI spec and a simulation of 10,000 users / 100 units with 5% payment failures, 2% duplicates and a 30 s Order Service outage, checking the inventory invariant after every step."
 

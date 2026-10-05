@@ -261,6 +261,12 @@ Money is stored as **integer paise** (`bigint`), never floats.
 | outbox_event | event_id | – (loose) | – | **partial (created_at) WHERE published_at IS NULL** – relay polls only unpublished rows |
 | audit_log | audit_id (bigserial) | – (loose) | append-only (no UPDATE/DELETE grant) | (entity_type, entity_id, created_at); (trace_id) |
 
+| **inbox_message** (new) | (consumer, message_id) | – (message_id = outbox_event.event_id) | PK is the dedupe guard: one row per consumer per message | (processed_at) for purge after Kafka retention |
+| **lease** (new) | lease_name | – | CHECK(fence_token >= 0); token only increases | PK only |
+| **reconciliation_case** (new) | case_id | payment_id, reservation_id | UNIQUE(dedupe_key); CHECK on source/action/status | partial (status, received_at) WHERE status='OPEN' |
+
+**New columns:** `inventory_reservation.last_fence_token` (stale sweeper writes rejected), `outbox_event.occurred_at` (event time), `outbox_event.next_attempt_at` (backoff with jitter), `outbox_event.publisher_fence_token`, `payment.gateway_event_at` (PSP event time). **New index:** partial UNIQUE `uq_reservation_one_live_per_unit` (write-skew guard). All three schema files (Postgres, MySQL, DBML) carry these; the Postgres file now creates **22 tables** and was applied to PostgreSQL 17, and `tools/resilience_checks.sql` verifies fencing, inbox and write-skew behaviour on it.
+
 **Note on UNIQUE(sale_id, customer_id):** a released reservation must not block the same customer from trying again. We implement it as a **partial unique index** `ON inventory_reservation(sale_id, customer_id) WHERE status IN ('RESERVED','PAYMENT_PENDING','CONFIRMED','SOLD')`. So: at most one *live or successful* reservation per customer per sale (per_customer_limit = 1 for Product X).
 
 **business_key** = `sha256(customer_id | sale_id | product_id)`. Even if the client sends two different Idempotency-Keys (two tabs), the business key collides and the second insert fails → we return the first reservation.

@@ -8,6 +8,10 @@
 | **ISP** – small focused interfaces | `TokenPool` (acquire/release), `IdempotencyStore`, `InventoryUnitRepository`, `OrderObserver` (one method) – instead of one giant `InventoryManager` | Notification code doesn't depend on payment methods |
 | **DIP** – depend on abstractions | `ReservationService` depends on `TokenPool` and `InventoryUnitRepository`, not Redis/Postgres; `PaymentService` depends on `PaymentGateway`, not Razorpay SDK | Redis can be replaced, or mocked in tests; DB fallback path is just another `TokenPool` that always admits |
 
+| **SRP (resilience)** | `RetryBudget` (how many retries), `BackoffWithJitter` (when), `RetryingClient` (whether) are three classes, not one big policy | Changing the backoff cap doesn't touch budget logic |
+| **OCP (resilience)** | `HotKeySaltedTokenPool` is just another `TokenPool`; `PhiAccrualDetector` is just another `OutlierDetector` | Hot-key salting added without editing `ReservationService` |
+| **DIP (resilience)** | `CircuitBreakerGateway` and `P2CLoadBalancer` depend on `OutlierDetector`, not on phi-accrual maths; `ReservationExpiryJob` depends on `LeaseManager`, not on SQL | Detector or lease store can change without touching callers |
+
 **DIP + our unique factor:** each Cache-Hit Ladder tier is an interface (`SoldOutFlag`, `TokenPool`, `IdempotencyStore`), so when Redis is down we inject a `DbFallbackTokenPool` and the system keeps running – slower but correct.
 
 > **Defend it**

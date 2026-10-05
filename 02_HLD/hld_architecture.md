@@ -92,9 +92,23 @@ flowchart LR
 |---|---|
 | Single hot inventory row | 100 unit rows + `SKIP LOCKED` – each buyer locks a different row |
 | Origin flooded at sale start | CDN + waiting room + Redis tokens ⇒ ~105 DB writes |
-| Redis hot key (token pool) | Lua atomic pop; shard pool across keys at 50×; local sold-out flag stops calls once empty |
+| Redis hot key (token pool) | Lua atomic pop; 16 salted sub-pools `tokens:sku42#0..#15` with fallback probing; per-node empty hints + local sold-out flag stop calls once empty |
 | Payment gateway latency | Timeouts, circuit breaker, async capture, reconciliation |
 | Kafka consumer lag | Partition by order_id, autoscale consumers, alert on lag |
+
+## 6. Production failure modes (summary)
+Full write-up, one section per failure mode with simulation numbers: **[Production_Failure_Modes.md](Production_Failure_Modes.md)**. New diagram: [`drawio/resilience_controls.drawio`](drawio/resilience_controls.drawio).
+
+| Where on the path | Control we added | Failure mode it handles |
+|---|---|---|
+| Load balancer | Power of two choices on in-flight count, outlier ejection | Hot / gray-failing backend |
+| API gateway | `LoadShedder` (503 + Retry-After at 300 ms expected wait), `RetryBudget` 10% | Metastable failure, retry storm |
+| Product/Sale (L2) | Singleflight, TTL jitter, hedged reads at p95 (reads only) | Cache stampede, tail latency |
+| Redis (L3) | 100 tokens split over `tokens:sku42#0..#15` + fallback probing | Hot key |
+| Postgres (L4) | Partial UNIQUE one-live-reservation-per-unit; `lease` + fencing tokens; `inbox_message` | Write skew, split-brain leader, duplicate delivery |
+| Payment client | Phi-accrual suspicion per PSP endpoint, backoff + jitter with the same key | Gray failure, retry storm |
+| Reconciliation | Event time + watermark, late events to `reconciliation_case` | Late webhooks |
+| Whole sale | Own cell | Blast radius |
 
 > **Defend it**
 > - "Inventory is the single consistency boundary; everything else can be eventually consistent."

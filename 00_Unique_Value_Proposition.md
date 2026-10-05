@@ -19,6 +19,15 @@ SALESTORM's differentiator is a five-tier **Cache-Hit Ladder** that turns a 10,0
 3. **Safety:** Idempotency-Key + `UNIQUE(sale_id, customer_id)` → max **1 charge** per customer.  
 4. **Resilience:** outbox + Kafka survive a **30 s** Order Service outage with **0** lost orders.
 
+## The ladder also protects us when things break
+
+The same tiers are where our failure-mode controls sit (full list in [`02_HLD/Production_Failure_Modes.md`](02_HLD/Production_Failure_Modes.md)):
+
+- **L2 + singleflight:** when the hot stock-status key expires, 2,000 concurrent misses become **1** database read, not 2,000.
+- **L3 + hot-key salting:** the sale SKU *is* the hot key, so its 100 tokens live in 16 sub-pools; no Redis key took more than 57 of the 10,000 buyers' calls in our run.
+- **Before L3, load shedding:** a request that would wait past its deadline gets a fast 503 instead of queueing. After a 2 s blip the system recovered in the first second; naive retries never recovered.
+- **L4 stays the only YES:** fencing tokens and an inbox table mean even a paused leader or a redelivered event can't produce a wrong YES.
+
 ## Proof
 
 See [`11_AI_Assisted_Validation/simulation/results.json`](11_AI_Assisted_Validation/simulation/results.json) and the Draw.io diagrams in [`DIAGRAMS.md`](DIAGRAMS.md).

@@ -33,6 +33,15 @@ Sell exactly ≤100, never double-charge, and every paid customer ends with a va
 
 **One-liner:** *Under failure we give up speed and availability – never correctness.*
 
+### 3a. Resilience guarantees vs targets (added after our failure-mode review, see `02_HLD/Production_Failure_Modes.md`)
+| HARD GUARANTEES – never violated | Protected by | TARGETS – best effort | Sacrificed when missed |
+|---|---|---|---|
+| G6 A redelivered event never creates a second order, SMS or shipment | `inbox_message` PK `(consumer, message_id)` in the same TX as the business write | T6 Recover to ≥ 95% success within 5 s after a 2 s dependency blip | Some buyers get a fast 503 + `Retry-After` |
+| G7 A paused/old leader (sweeper, relay) can never overwrite newer state | `lease.fence_token` (monotonic) checked in every `UPDATE … WHERE last_fence_token <= :token` | T7 Retries ≤ 10% of calls (retry budget); total load amplification ≤ 1.1× | Clients fail fast instead of retrying |
+| G8 One live reservation per unit, whatever the isolation level | Partial UNIQUE `uq_reservation_one_live_per_unit` + `SKIP LOCKED` + CHECKs | T8 Steady-state utilization < 70% on every tier (Little's law sizing) | Waiting room admits fewer per second |
+| G9 A late payment for an expired reservation is voided or refunded, never silently kept | event time + watermark → `reconciliation_case` | T9 p99 measured open-loop (intended start, HdrHistogram) within the T1 target | Report it honestly; fix capacity |
+| | | T10 Flash-sale overload doesn't move regular checkout p99 (separate cell) | Sale cell sheds load first |
+
 ## 4. Non-functional requirements (measurable)
 | Quality | Requirement |
 |---|---|
@@ -43,6 +52,9 @@ Sell exactly ≤100, never double-charge, and every paid customer ends with a va
 | Security | OAuth2/JWT, TLS everywhere, rate limiting, input validation, no card data stored (PCI tokenization) |
 | Recovery | RPO ≈ 0 for orders/payments (sync replica); RTO < 1 min DB failover; outbox guarantees no lost events |
 | Observability | Per-tier cache hit ratio, reservation success/fail, payment fail rate, queue lag, invariant alarms |
+| Overload behaviour | Load shedding at 300 ms expected queue wait; retry budget 10%; full-jitter backoff (base 100 ms, cap 2 s); max 3 attempts, idempotent calls only |
+| Isolation | Flash sale in its own cell (pods, Redis, DB pool, limits); outlier ejection + power-of-two-choices load balancing inside the cell |
+| Load-test validity | Open-loop arrivals at a constant rate; latency from intended start time (no coordinated omission) |
 
 ## 5. Assumptions & constraints
 - Users are logged in before the sale (session warm-up); 1 unit per customer.

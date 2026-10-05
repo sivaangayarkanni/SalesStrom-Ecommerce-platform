@@ -1,0 +1,21 @@
+=== MODE: SAFE (10000 users, 0.95 s real) ===
+requests total           : 10200 (200 duplicates)
+answered per tier:
+  L1_cdn_sold_out       : 9142
+  L2_local_flag         : 929
+  L3_pool_reject        : 10
+  idempotent_replay     : 10
+  reached_db            : 109
+duplicates by tier       : {'idempotent_replay': 6, 'L2_local_flag': 5, 'L1_cdn_sold_out': 189}
+duplicates collapsed     : 200 / 200 (none reached DB twice)
+final rows               : {'AVAILABLE': 0, 'RESERVED': 0, 'SOLD': 100}
+final sold               : 100
+failed payments          : 7 (unit released + token returned)
+abandoned (TTL expired)  : 2
+resold units             : 9
+outboxed during outage   : 100 (consumer retries while down: 8)
+orders created           : 100 (after outage: 100)
+captured payments        : 100 (max charges/customer: 1)
+SKIP LOCKED skips        : 0   UNIQUE(customer) rejects: 0
+invariant checks run     : 419  violations: 0
+invariants               : PASS

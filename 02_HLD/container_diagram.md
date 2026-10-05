@@ -1,5 +1,10 @@
 # 02 – Container / Service Diagram
 
+![container](drawio/container.png)
+
+*Editable source: [`drawio/container.drawio`](drawio/container.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ```mermaid
 flowchart TB
   subgraph Edge

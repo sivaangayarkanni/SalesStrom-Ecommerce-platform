@@ -1,5 +1,10 @@
 # 03 – Concurrency & Inventory Reservation Design (Phase II)
 
+![concurrency_flow](drawio/concurrency_flow.png)
+
+*Editable source: [`drawio/concurrency_flow.drawio`](drawio/concurrency_flow.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 > **Where is inventory consistency guaranteed?** In exactly one place: the Postgres transaction inside the Inventory & Reservation Service that claims a row in `inventory_unit`. Everything before it (CDN, local cache, Redis) only filters. **Caches can say NO; only the database can say YES.**
 
 ## 1. How 10,000 requests enter and get filtered

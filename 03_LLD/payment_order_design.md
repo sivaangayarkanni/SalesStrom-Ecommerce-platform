@@ -1,5 +1,14 @@
 # 03 – Payment & Order Design (Phase III)
 
+![seq_payment](drawio/seq_payment.png)
+
+*Editable source: [`drawio/seq_payment.drawio`](drawio/seq_payment.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+![seq_order_recovery](drawio/seq_order_recovery.png)
+
+*Editable source: [`drawio/seq_order_recovery.drawio`](drawio/seq_order_recovery.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ## 1. Core idea: authorize first, capture only after the order exists
 | Step | What happens | Why |
 |---|---|---|

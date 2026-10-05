@@ -1,5 +1,10 @@
 # 03 – Class Diagrams (Inventory, Payment, Order)
 
+![class_diagram](drawio/class_diagram.png)
+
+*Editable source: [`drawio/class_diagram.drawio`](drawio/class_diagram.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ## Inventory & Reservation module
 ```mermaid
 classDiagram

@@ -1,5 +1,10 @@
 # 02 – High-Level Architecture
 
+![hld_architecture](drawio/hld_architecture.png)
+
+*Editable source: [`drawio/hld_architecture.drawio`](drawio/hld_architecture.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ## 1. Architecture
 ```mermaid
 flowchart TB

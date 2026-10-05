@@ -1,5 +1,10 @@
 # 02 – System Context Diagram
 
+![system_context](drawio/system_context.png)
+
+*Editable source: [`drawio/system_context.drawio`](drawio/system_context.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ```mermaid
 flowchart LR
   C([Customer]) -->|HTTPS| EDGE[CDN + WAF]

@@ -1,5 +1,10 @@
 # 04 – Database Design (Postgres = L4, the source of truth)
 
+![er_diagram](drawio/er_diagram.png)
+
+*Editable source: [`drawio/er_diagram.drawio`](drawio/er_diagram.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 > **Rule we design around:** *Caches can say NO; only the database can say YES.*
 > Redis (L3) may reject a buyer early, but a sale only exists when a Postgres transaction commits.
 > All numbers in this document are **estimates** for reasoning, not measurements.

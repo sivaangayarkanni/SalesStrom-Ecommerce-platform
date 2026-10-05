@@ -48,7 +48,9 @@ Full run: [`11_AI_Assisted_Validation/simulation/`](11_AI_Assisted_Validation/si
 
 ## Diagrams as images
 
-Every diagram is also an image file (PNG / Draw.io). Browse **[DIAGRAMS.md](DIAGRAMS.md)** or the `*/tools/` folders.
+All 13 diagrams are built in **Draw.io** and exported as PNG, in `02_HLD/drawio`, `03_LLD/drawio` and `04_Database/drawio`. See them all in **[DIAGRAMS.md](DIAGRAMS.md)**.
+
+![HLD](02_HLD/drawio/hld_architecture.png)
 
 ## How to open the tool files
 

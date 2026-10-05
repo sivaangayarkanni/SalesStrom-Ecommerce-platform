@@ -1,5 +1,14 @@
 # 03 – State Diagrams
 
+![state_reservation](drawio/state_reservation.png)
+
+*Editable source: [`drawio/state_reservation.drawio`](drawio/state_reservation.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+![state_order](drawio/state_order.png)
+
+*Editable source: [`drawio/state_order.drawio`](drawio/state_order.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ## Reservation lifecycle
 ```mermaid
 stateDiagram-v2

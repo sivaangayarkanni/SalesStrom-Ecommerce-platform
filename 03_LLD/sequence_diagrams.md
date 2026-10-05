@@ -1,5 +1,18 @@
 # 03 – Sequence Diagrams
 
+![seq_reservation](drawio/seq_reservation.png)
+
+*Editable source: [`drawio/seq_reservation.drawio`](drawio/seq_reservation.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+![seq_payment](drawio/seq_payment.png)
+
+*Editable source: [`drawio/seq_payment.drawio`](drawio/seq_payment.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+![seq_order_recovery](drawio/seq_order_recovery.png)
+
+*Editable source: [`drawio/seq_order_recovery.drawio`](drawio/seq_order_recovery.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ## 1. Purchase / reservation (shows which cache tier answers)
 ```mermaid
 sequenceDiagram

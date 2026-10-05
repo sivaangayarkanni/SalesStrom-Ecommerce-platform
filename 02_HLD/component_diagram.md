@@ -1,5 +1,10 @@
 # 02 – Component Diagram (critical services)
 
+![component](drawio/component.png)
+
+*Editable source: [`drawio/component.drawio`](drawio/component.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ## Inventory & Reservation Service
 ```mermaid
 flowchart TB

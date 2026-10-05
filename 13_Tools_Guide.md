@@ -4,8 +4,8 @@ Every tool named in the hackathon brief has a matching artifact in this repo.
 
 | Tool | File(s) | How to open |
 |------|---------|-------------|
-| **Draw.io / diagrams.net** | `02_HLD/tools/salestorm_hld.drawio` | [app.diagrams.net](https://app.diagrams.net/) → Open Existing Diagram |
-| **PlantUML** | `02_HLD/tools/*.puml`, `03_LLD/tools/*.puml` (+ rendered `.png`) | VS Code PlantUML extension, or `plantuml -tpng file.puml` |
+| **Draw.io / diagrams.net** | All 13 diagrams: `02_HLD/drawio/*.drawio`, `03_LLD/drawio/*.drawio`, `04_Database/drawio/er_diagram.drawio` (+ PNG exports) | [app.diagrams.net](https://app.diagrams.net/) → Open Existing Diagram |
+| **PlantUML** | `02_HLD/tools/*.puml`, `03_LLD/tools/*.puml` (alternate source) | VS Code PlantUML extension, or `plantuml -tpng file.puml` |
 | **Mermaid** | Embedded in `02_HLD/*.md`, `03_LLD/*.md` | GitHub renders them; or [mermaid.live](https://mermaid.live) |
 | **StarUML** | Import via PNG / or recreate from `03_LLD/tools/class_diagram.puml` | Open StarUML → File → Import → Image, or redraw from PlantUML |
 | **Visual Paradigm** | Same PlantUML / PNG sources under `02_HLD/tools` and `03_LLD/tools` | Import PNG or export from PlantUML to XMI if needed |

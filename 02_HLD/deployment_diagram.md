@@ -1,5 +1,10 @@
 # 02 – Deployment Diagram
 
+![deployment](drawio/deployment.png)
+
+*Editable source: [`drawio/deployment.drawio`](drawio/deployment.drawio) — open in [app.diagrams.net](https://app.diagrams.net).*
+
+
 ```mermaid
 flowchart TB
   USERS[Users] --> CDN[Global CDN and WAF edge POPs]

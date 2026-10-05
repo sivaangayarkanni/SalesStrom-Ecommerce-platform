@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SALESTORM API — OpenAPI</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #0a1224; }
+    .top {
+      font-family: system-ui, sans-serif; padding: .85rem 1.25rem;
+      background: #0f1b33; border-bottom: 1px solid #243656; color: #e8eef8;
+      display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+    }
+    .top a { color: #4cc9f0; text-decoration: none; }
+    #swagger-ui { max-width: 1200px; margin: 0 auto; }
+    .swagger-ui .topbar { display: none; }
+    .swagger-ui .info { margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <strong>SALESTORM OpenAPI</strong>
+    <a href="index.html">← Showcase</a>
+    <a href="openapi.yaml">openapi.yaml</a>
+    <a href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform">Repo</a>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: 'openapi.yaml',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis],
+      layout: 'BaseLayout'
+    });
+  </script>
+</body>
+</html>

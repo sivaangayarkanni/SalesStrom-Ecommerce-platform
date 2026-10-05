@@ -1,5 +1,9 @@
 # SALESTORM — Flash-Sale E-Commerce Platform
 
+> **Live showcase:** [https://sivaangayarkanni.github.io/SalesStrom-Ecommerce-platform/](https://sivaangayarkanni.github.io/SalesStrom-Ecommerce-platform/)  
+> OpenAPI/Swagger: [api.html](https://sivaangayarkanni.github.io/SalesStrom-Ecommerce-platform/api.html)
+
+
 **SysCrafters 2026 System Design Hackathon**  
 Team deliverable for a flash sale with **100 units**, **10,000 concurrent Buy clicks**, and peak traffic up to **500k req/s**.
 

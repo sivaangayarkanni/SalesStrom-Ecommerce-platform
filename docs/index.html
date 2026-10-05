@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SALESTORM — Cache-Hit Ladder Flash Sale Design</title>
+  <meta name="description" content="System design for selling exactly 100 units to 10,000 concurrent buyers with zero oversell. Caches can say NO. Only the database can say YES." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <div class="brand">SALE<span>STORM</span></div>
+      <div class="nav-links">
+        <a href="#ladder">Ladder</a>
+        <a href="#diagrams">Diagrams</a>
+        <a href="#failures">14 Failures</a>
+        <a href="#tools">Tools</a>
+        <a href="#links">Links</a>
+        <a href="#sim">Demo</a>
+        <a href="api.html">API</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="badge">SysCrafters 2026 · System Design Hackathon</div>
+      <h1>Sell exactly 100 units to 10,000 buyers. Never oversell.</h1>
+      <p class="tagline">Caches can say NO. Only the database can say YES.</p>
+      <p class="problem">
+        Flash-sale e-commerce under extreme concurrency: <strong>100 units</strong>,
+        <strong>10,000 concurrent Buy clicks</strong>, peak traffic up to
+        <strong>500k req/s</strong>. SALESTORM’s unique factor is the five-tier
+        <strong>Cache-Hit Ladder</strong> — L0 browser → L1 CDN (SOLD_OUT) → L2 in-process →
+        L3 Redis (100 tokens in 16 salted sub-pools + idempotency) → L4 Postgres
+        (the only place a sale commits).
+      </p>
+      <div class="links">
+        <a class="btn" href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform">GitHub Repo</a>
+        <a class="btn secondary" href="#ladder">See the Ladder</a>
+        <a class="btn secondary" href="api.html">OpenAPI / Swagger</a>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="n">100</div><div class="l">Units sold (exact)</div></div>
+        <div class="stat"><div class="n">10,200</div><div class="l">Requests simulated</div></div>
+        <div class="stat"><div class="n">107</div><div class="l">Reached Postgres</div></div>
+        <div class="stat"><div class="n">0</div><div class="l">Invariant violations</div></div>
+        <div class="stat"><div class="n">650</div><div class="l">Naive design sold</div></div>
+      </div>
+    </div>
+  </header>
+
+  <section id="ladder">
+    <div class="wrap">
+      <h2>Cache-Hit Ladder</h2>
+      <p class="lead">
+        Simulation: <strong>10,200 requests</strong> (200 duplicates). Safe design sold
+        <strong>exactly 100</strong>. Naive counter sold <strong>650</strong>.
+        415 invariant checks, <strong>0 violations</strong>.
+      </p>
+      <div class="ladder">
+        <div class="tier">
+          <div class="id">L0</div>
+          <div>
+            <h3>Browser</h3>
+            <p>Debounce Buy, cache static assets. Cannot sell a unit.</p>
+          </div>
+          <div class="hits">—<small>client-side</small></div>
+        </div>
+        <div class="tier">
+          <div class="id">L1</div>
+          <div>
+            <h3>CDN + WAF</h3>
+            <p>Pages + global <code>SOLD_OUT</code> flag at the edge. Cannot sell a unit.</p>
+          </div>
+          <div class="hits">9,921<small>answered here</small></div>
+        </div>
+        <div class="tier">
+          <div class="id">L2</div>
+          <div>
+            <h3>In-process cache</h3>
+            <p>Hot product / sold-out flag per pod + singleflight. Cannot sell a unit.</p>
+          </div>
+          <div class="hits">163<small>answered here</small></div>
+        </div>
+        <div class="tier">
+          <div class="id">L3</div>
+          <div>
+            <h3>Redis</h3>
+            <p>100 admission tokens in 16 salted sub-pools + idempotency. Cannot sell a unit.</p>
+          </div>
+          <div class="hits">7<small>pool reject · 2 replays</small></div>
+        </div>
+        <div class="tier">
+          <div class="id">L4</div>
+          <div>
+            <h3>Postgres</h3>
+            <p>Unit rows + <code>SKIP LOCKED</code>. The only place a sale commits.</p>
+          </div>
+          <div class="hits">107<small>reached DB · 100 sold</small></div>
+        </div>
+      </div>
+      <div class="rule">Rule: Caches can say NO. Only the database can say YES.</div>
+      <div class="compare">
+        <div class="card-ok">
+          <h3>Safe design</h3>
+          <p>Sold <strong>100</strong> · max 1 charge/customer · 415 checks · 0 violations · 107 DB hits of 10,200</p>
+        </div>
+        <div class="card-bad">
+          <h3>Naive counter</h3>
+          <p>Sold <strong>650</strong> (oversold by 550) · write-skew under concurrency · invariants FAIL</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="diagrams">
+    <div class="wrap">
+      <h2>Diagrams gallery</h2>
+      <p class="lead">Draw.io exports from HLD, LLD, Database, and screenshot pack. Click any image to enlarge.</p>
+      <div class="gallery" id="gallery">
+        <figure class="g-item" data-src="assets/hld_architecture.png"><img src="assets/hld_architecture.png" alt="HLD architecture" loading="lazy" /><figcaption>HLD architecture</figcaption></figure>
+        <figure class="g-item" data-src="assets/system_context.png"><img src="assets/system_context.png" alt="System context" loading="lazy" /><figcaption>System context</figcaption></figure>
+        <figure class="g-item" data-src="assets/container.png"><img src="assets/container.png" alt="Container diagram" loading="lazy" /><figcaption>Container</figcaption></figure>
+        <figure class="g-item" data-src="assets/component.png"><img src="assets/component.png" alt="Component diagram" loading="lazy" /><figcaption>Component</figcaption></figure>
+        <figure class="g-item" data-src="assets/deployment.png"><img src="assets/deployment.png" alt="Deployment" loading="lazy" /><figcaption>Deployment</figcaption></figure>
+        <figure class="g-item" data-src="assets/resilience_controls.png"><img src="assets/resilience_controls.png" alt="Resilience controls" loading="lazy" /><figcaption>Resilience controls</figcaption></figure>
+        <figure class="g-item" data-src="assets/concurrency_flow.png"><img src="assets/concurrency_flow.png" alt="Concurrency flow" loading="lazy" /><figcaption>Concurrency flow</figcaption></figure>
+        <figure class="g-item" data-src="assets/class_diagram.png"><img src="assets/class_diagram.png" alt="Class diagram" loading="lazy" /><figcaption>Class diagram</figcaption></figure>
+        <figure class="g-item" data-src="assets/seq_reservation.png"><img src="assets/seq_reservation.png" alt="Reservation sequence" loading="lazy" /><figcaption>Seq: reservation</figcaption></figure>
+        <figure class="g-item" data-src="assets/seq_payment.png"><img src="assets/seq_payment.png" alt="Payment sequence" loading="lazy" /><figcaption>Seq: payment</figcaption></figure>
+        <figure class="g-item" data-src="assets/seq_order_recovery.png"><img src="assets/seq_order_recovery.png" alt="Order recovery sequence" loading="lazy" /><figcaption>Seq: order recovery</figcaption></figure>
+        <figure class="g-item" data-src="assets/state_reservation.png"><img src="assets/state_reservation.png" alt="Reservation state" loading="lazy" /><figcaption>State: reservation</figcaption></figure>
+        <figure class="g-item" data-src="assets/state_order.png"><img src="assets/state_order.png" alt="Order state" loading="lazy" /><figcaption>State: order</figcaption></figure>
+        <figure class="g-item" data-src="assets/er_diagram.png"><img src="assets/er_diagram.png" alt="ER diagram" loading="lazy" /><figcaption>ER diagram (Draw.io)</figcaption></figure>
+        <figure class="g-item" data-src="assets/07_er_dbdiagram_io.png"><img src="assets/07_er_dbdiagram_io.png" alt="ER dbdiagram.io" loading="lazy" /><figcaption>ER (dbdiagram.io)</figcaption></figure>
+        <figure class="g-item" data-src="assets/tier_absorption.png"><img src="assets/tier_absorption.png" alt="Tier absorption chart" loading="lazy" /><figcaption>Tier absorption</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="failures">
+    <div class="wrap">
+      <h2>14 production failure modes</h2>
+      <p class="lead">
+        Real numbers from <code>resilience_sim.py</code> (seed 42) and design notes.
+        Source: <code>02_HLD/Production_Failure_Modes.md</code> · output:
+        <code>resilience_output.txt</code>.
+      </p>
+      <div class="scroll-x">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Failure mode</th>
+              <th>How it hits SALESTORM</th>
+              <th>Our control</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td>Metastable failure</td>
+              <td>2 s Redis failover → minutes of timeouts as retries fill the queue</td>
+              <td>Admission + load shedding + retry budget</td>
+              <td>[sim] naive never recovers; controlled recovers in first second · goodput 16.7% → 97.2%</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Retry storm</td>
+              <td>10,000 phones retry Buy every 100 ms</td>
+              <td>Idempotent retries only, full-jitter backoff, 10% retry budget</td>
+              <td>[sim] 4.26× vs 1.01× load amplification · attempts 2,045,760 → 483,560</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>Tail latency amplification</td>
+              <td>One slow product replica makes every page slow</td>
+              <td>Hedged reads at p95 (reads only); no sync fan-out on Buy</td>
+              <td>design</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td>Cache stampede</td>
+              <td>Stock-status key expires; 2,000 requests hit Postgres at once</td>
+              <td>Singleflight + TTL jitter</td>
+              <td>[sim] 2,000 DB reads → 1</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td>Hot key</td>
+              <td><code>tokens:sku42</code> hits one Redis shard</td>
+              <td>16 salted sub-pools, fallback probing, local empty hints</td>
+              <td>[sim] max 57 ops/key vs 10,000; 100 tokens granted; 0 left</td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td>Duplicate delivery</td>
+              <td>Kafka redelivers PaymentAuthorized after outage</td>
+              <td>Outbox + inbox table at each consumer</td>
+              <td>[sim] 13 duplicates → 0 · 113 deliveries → 100 orders</td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td>Split-brain leader</td>
+              <td>Paused sweeper wakes and releases a unit someone just bought</td>
+              <td>Lease with monotonic fencing token checked by DB</td>
+              <td>[sim] 5 stale writes applied → 5 rejected; 3 buyers lost → 0</td>
+            </tr>
+            <tr>
+              <td>8</td>
+              <td>Gray failure</td>
+              <td>PSP answers health but takes 8 s to authorize</td>
+              <td>Health from real traffic, outlier ejection, phi-accrual</td>
+              <td>design</td>
+            </tr>
+            <tr>
+              <td>9</td>
+              <td>Unbalanced backends</td>
+              <td>Round-robin keeps feeding a pod stuck in GC</td>
+              <td>Power of two choices on in-flight count</td>
+              <td>design</td>
+            </tr>
+            <tr>
+              <td>10</td>
+              <td>Wrong capacity numbers</td>
+              <td>Pools sized by guess: starved or thrashing</td>
+              <td>Little’s law sizing, &lt; 70% utilization</td>
+              <td>design math · ~3 busy PG connections; pool of 40</td>
+            </tr>
+            <tr>
+              <td>11</td>
+              <td>Write skew</td>
+              <td>Two TXs both read “1 left” and both sell → unit #101</td>
+              <td>Unit rows + SKIP LOCKED + partial UNIQUE + CHECK</td>
+              <td>[pg]/[sim] safe sold 100; naive sold 650</td>
+            </tr>
+            <tr>
+              <td>12</td>
+              <td>Event time vs processing time</td>
+              <td>Late PSP webhook after reservation expired</td>
+              <td>Event time + watermark; late events → reconciliation</td>
+              <td>design</td>
+            </tr>
+            <tr>
+              <td>13</td>
+              <td>Blast radius</td>
+              <td>Sale traffic starves normal catalog/checkout</td>
+              <td>Sale runs in its own cell</td>
+              <td>design</td>
+            </tr>
+            <tr>
+              <td>14</td>
+              <td>Coordinated omission</td>
+              <td>Load test says p99 = 1 ms while users wait 2 s</td>
+              <td>Open-loop arrivals, intended-start latency, HdrHistogram</td>
+              <td>[sim] closed p99 1.0 ms vs open p99 1,902 ms</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tools">
+    <div class="wrap">
+      <h2>Tech &amp; tools used</h2>
+      <p class="lead">Every hackathon-brief tool has a matching artifact in the repo.</p>
+      <div class="tools">
+        <div class="tool">Draw.io / diagrams.net</div>
+        <div class="tool">PlantUML</div>
+        <div class="tool">Mermaid</div>
+        <div class="tool">StarUML</div>
+        <div class="tool">Visual Paradigm</div>
+        <div class="tool">MySQL Workbench</div>
+        <div class="tool">dbdiagram.io</div>
+        <div class="tool">Swagger / OpenAPI</div>
+        <div class="tool">Postman</div>
+        <div class="tool">GitHub</div>
+        <div class="tool">Apache JMeter</div>
+        <div class="tool">Locust</div>
+        <div class="tool">PostgreSQL 17</div>
+        <div class="tool">Redis</div>
+        <div class="tool">Kafka + Outbox</div>
+        <div class="tool">Envoy / P2C</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="adrs">
+    <div class="wrap">
+      <h2>Architecture Decision Records</h2>
+      <p class="lead">Ten ADRs in <code>10_ADR/</code>.</p>
+      <div class="adr-list">
+        <div class="adr"><strong>ADR-001</strong> Cache-Hit Ladder</div>
+        <div class="adr"><strong>ADR-002</strong> Unit rows + FOR UPDATE SKIP LOCKED</div>
+        <div class="adr"><strong>ADR-003</strong> Redis admission tokens</div>
+        <div class="adr"><strong>ADR-004</strong> SQL (Postgres) over NoSQL for inventory</div>
+        <div class="adr"><strong>ADR-005</strong> Sync reserve + authorize; async everything else</div>
+        <div class="adr"><strong>ADR-006</strong> Authorize-then-capture</div>
+        <div class="adr"><strong>ADR-007</strong> Outbox + Kafka + saga</div>
+        <div class="adr"><strong>ADR-008</strong> Pessimistic on hot rows, optimistic elsewhere</div>
+        <div class="adr"><strong>ADR-009</strong> Resilience controls: shedding, retry budget, fencing, inbox</div>
+        <div class="adr"><strong>ADR-010</strong> Flash-sale cell + open-loop load testing</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="links">
+    <div class="wrap">
+      <h2>Links</h2>
+      <div class="links">
+        <a class="btn" href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform">Repository</a>
+        <a class="btn secondary" href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform/blob/main/12_Presentation/SALESTORM_Final_Presentation.pptx">Pitch deck (PPTX)</a>
+        <a class="btn secondary" href="https://raw.githubusercontent.com/sivaangayarkanni/SalesStrom-Ecommerce-platform/main/12_Presentation/SALESTORM_Final_Presentation.pptx">Deck raw download</a>
+        <a class="btn secondary" href="api.html">OpenAPI / Swagger UI</a>
+        <a class="btn secondary" href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform/tree/main/10_ADR">ADRs</a>
+        <a class="btn secondary" href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform/blob/main/02_HLD/Production_Failure_Modes.md">Failure modes</a>
+        <a class="btn secondary" href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform/tree/main/11_AI_Assisted_Validation/simulation">Simulation</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="sim">
+    <div class="wrap">
+      <h2>Browser demo — flash-sale simulation</h2>
+      <p class="lead">
+        In-browser toy model of 10,000 buyers racing for 100 units. Labelled as a
+        <strong>browser demo</strong> (not the Python sim). Shows tier counts and
+        “exactly 100 sold”.
+      </p>
+      <div class="sim-box">
+        <div class="controls">
+          <button class="btn" id="runSim" type="button">Run flash sale (10,000 buyers · 100 units)</button>
+          <span class="note" id="simStatus">Idle — click to run</span>
+        </div>
+        <pre class="sim-out" id="simOut">Waiting for run…</pre>
+        <p class="note">Demo approximates ladder absorption; authoritative numbers come from <code>simulate.py</code> / <code>results.json</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      SALESTORM · SysCrafters 2026 · Cache-Hit Ladder ·
+      <a href="https://github.com/sivaangayarkanni/SalesStrom-Ecommerce-platform">GitHub</a>
+    </div>
+  </footer>
+
+  <div id="lightbox" role="dialog" aria-label="Enlarged diagram"><img alt="" /></div>
+
+  <script>
+    (function () {
+      const lb = document.getElementById('lightbox');
+      const lbImg = lb.querySelector('img');
+      document.getElementById('gallery').addEventListener('click', (e) => {
+        const fig = e.target.closest('.g-item');
+        if (!fig) return;
+        lbImg.src = fig.dataset.src;
+        lbImg.alt = fig.querySelector('img').alt || '';
+        lb.classList.add('open');
+      });
+      lb.addEventListener('click', () => lb.classList.remove('open'));
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') lb.classList.remove('open');
+      });
+
+      // Browser demo: approximate Cache-Hit Ladder with 10k buyers / 100 units
+      document.getElementById('runSim').addEventListener('click', () => {
+        const status = document.getElementById('simStatus');
+        const out = document.getElementById('simOut');
+        status.textContent = 'Running…';
+        const BUYERS = 10000;
+        const UNITS = 100;
+        let tokens = UNITS;
+        let sold = 0;
+        let L1 = 0, L2 = 0, L3 = 0, replays = 0, reached = 0;
+        let soldOutFlag = false;
+        const seen = new Set();
+        // Shuffle buyer ids
+        const buyers = Array.from({ length: BUYERS }, (_, i) => i);
+        for (let i = buyers.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [buyers[i], buyers[j]] = [buyers[j], buyers[i]];
+        }
+        // First ~wave tries while stock exists; after sell-out CDN flag trips
+        for (let i = 0; i < buyers.length; i++) {
+          const id = buyers[i];
+          if (soldOutFlag) {
+            // Most hits stop at L1 once SOLD_OUT is published
+            if (Math.random() < 0.97) { L1++; continue; }
+            if (Math.random() < 0.7) { L2++; continue; }
+            L3++; // empty pool reject
+            continue;
+          }
+          if (seen.has(id)) { replays++; continue; }
+          seen.add(id);
+          if (tokens > 0) {
+            tokens--;
+            reached++;
+            sold++;
+            if (sold >= UNITS) soldOutFlag = true;
+          } else {
+            // Shouldn't happen; stock already 0
+            L3++;
+            soldOutFlag = true;
+          }
+        }
+        // Align remaining unanswered mass to ladder (demo approximation)
+        // After flag: remaining buyers already counted. Pad L1-like absorption for realism display.
+        const answered = L1 + L2 + L3 + replays + reached;
+        const leftover = BUYERS - answered;
+        if (leftover > 0) L1 += leftover;
+
+        out.textContent =
+`BROWSER DEMO (not authoritative Python sim)
+Buyers:           ${BUYERS}
+Units:            ${UNITS}
+L1 CDN SOLD_OUT:  ${L1}
+L2 in-process:    ${L2}
+L3 pool reject:   ${L3}
+Idempotent replay:${replays}
+Reached Postgres: ${reached}
+Exactly sold:     ${sold}
+Oversold:         ${Math.max(0, sold - UNITS)}
+Result:           ${sold === UNITS ? 'PASS — exactly 100 sold' : 'CHECK'}`;
+        status.textContent = sold === UNITS ? 'Done — exactly 100 sold' : 'Done';
+      });
+    })();
+  </script>
+</body>
+</html>

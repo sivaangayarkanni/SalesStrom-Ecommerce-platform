@@ -1,5 +1,16 @@
 # Diagrams
 
+## How to open in the brief tools
+
+| Tool | Open these files |
+|------|------------------|
+| **Draw.io / diagrams.net** | Any `*.drawio` under `02_HLD/drawio/`, `03_LLD/drawio/`, `04_Database/drawio/` (or the copies in each `tools/` folder). File → Open Existing Diagram. |
+| **dbdiagram.io** | Paste `04_Database/tools/salestorm.dbml` |
+| **MySQL Workbench** | File → Run SQL Script → `04_Database/tools/schema_mysql.sql` |
+| **PlantUML / StarUML / Visual Paradigm** | Import PNG from `*/drawio/*.png`, or open matching `tools/*.puml` |
+| **Swagger** | `05_API/tools/openapi.yaml` in editor.swagger.io |
+| **Postman** | Import `05_API/tools/salestorm.postman_collection.json` |
+
 Every diagram was built in **Draw.io (diagrams.net)** and exported to PNG with the Draw.io app. Open any `.drawio` file at [app.diagrams.net](https://app.diagrams.net) to edit it.
 
 PlantUML (`.puml`) and Mermaid (`.mmd`) sources are kept in each `tools/` folder as alternates.
